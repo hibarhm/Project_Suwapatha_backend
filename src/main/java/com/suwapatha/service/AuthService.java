@@ -12,12 +12,17 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtUtil = jwtUtil;
+    }
 
     public AuthResponse registerPatient(PatientRegisterRequest request) {
         // Check if user already exists
@@ -80,6 +85,7 @@ public class AuthService {
         user.setPhone(request.getPhone());
         user.setGender(request.getGender());
         user.setDateOfBirth(request.getDateOfBirth());
+        user.setHospitalId(request.getHospitalId());
 
         User savedUser = userRepository.save(user);
 

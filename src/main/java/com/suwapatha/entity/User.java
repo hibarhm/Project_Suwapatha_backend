@@ -43,6 +43,7 @@ public class User {
     private String doctorId;
     private String nic;
     private String phone;
+    private String hospitalId;
 
     @CreatedDate
     private LocalDateTime createdAt;

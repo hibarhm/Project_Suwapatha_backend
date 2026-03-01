@@ -43,4 +43,7 @@ public class DoctorRegisterRequest {
 
     @NotBlank(message = "Date of birth is required")
     private String dateOfBirth;
+
+    @NotBlank(message = "Hospital is required")
+    private String hospitalId;
 }

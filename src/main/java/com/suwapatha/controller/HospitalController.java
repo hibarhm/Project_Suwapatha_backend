@@ -13,12 +13,16 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/patient/hospitals")
-@RequiredArgsConstructor
+@RequestMapping("/api/hospitals")
 public class HospitalController {
 
     private final HospitalRepository hospitalRepository;
     private final OpdSessionService opdSessionService;
+
+    public HospitalController(HospitalRepository hospitalRepository, OpdSessionService opdSessionService) {
+        this.hospitalRepository = hospitalRepository;
+        this.opdSessionService = opdSessionService;
+    }
 
     /** Search hospitals by name (returns all if no query given) */
     @GetMapping

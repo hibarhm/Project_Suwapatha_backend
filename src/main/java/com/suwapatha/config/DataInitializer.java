@@ -1,15 +1,19 @@
-package com.suwapatha.config;
+/*package com.suwapatha.config;
 
 import com.suwapatha.entity.User;
 import com.suwapatha.entity.UserRole;
 import com.suwapatha.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
+@Profile("!dev") // Only run if NOT dev profile
 public class DataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;
@@ -28,7 +32,7 @@ public class DataInitializer implements CommandLineRunner {
             admin.setStatus("APPROVED");
 
             userRepository.save(admin);
-            System.out.println("Admin user created: admin@suwapatha.com / admin123");
+            log.info("Admin user created: admin@suwapatha.com / admin123");
         }
     }
-}
+}*/

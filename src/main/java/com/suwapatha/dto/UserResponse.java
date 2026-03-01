@@ -35,6 +35,7 @@ public class UserResponse {
     private String doctorId;
     private String nic;
     private String phone;
+    private String hospitalId;
 
     private LocalDateTime createdAt;
 

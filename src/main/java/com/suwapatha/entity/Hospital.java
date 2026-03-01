@@ -24,4 +24,8 @@ public class Hospital {
     private String type; // Teaching | Provincial General | Base | District | Specialized | Maternity
     private String address;
     private String phone;
+
+    // Link to admin user
+    @Indexed
+    private String adminId; // References User.id where role = ADMIN
 }
