@@ -21,7 +21,7 @@ public class AppointmentController {
     private final AppointmentService appointmentService;
     private final UserRepository userRepository;
 
-    /** Book a new OPD appointment */
+    /*Book a new OPD appointment */
     @PostMapping
     public ResponseEntity<AppointmentResponse> book(
             Authentication authentication,
@@ -33,14 +33,14 @@ public class AppointmentController {
         return ResponseEntity.ok(response);
     }
 
-    /** Get all appointments for the logged-in patient */
+    /*get all appointments for the logged-in patient */
     @GetMapping
     public ResponseEntity<List<AppointmentResponse>> getAll(Authentication authentication) {
         User user = getUser(authentication);
         return ResponseEntity.ok(appointmentService.getMyAppointments(user.getId()));
     }
 
-    /** Get the current active (BOOKED) appointment — for the queue status card */
+    /* Get the current active (BOOKED) appointment — for the queue status card */
     @GetMapping("/active")
     public ResponseEntity<AppointmentResponse> getActive(Authentication authentication) {
         User user = getUser(authentication);
@@ -51,7 +51,7 @@ public class AppointmentController {
         return ResponseEntity.ok(active);
     }
 
-    /** Cancel an appointment */
+    /*Cancel an appointment */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> cancel(
             Authentication authentication,

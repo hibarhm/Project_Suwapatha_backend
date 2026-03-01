@@ -26,9 +26,8 @@ public class AdminController {
         this.adminOpdService = adminOpdService;
     }
 
-    // ══════════════════════════════════════════════════════════════════════
+
     // Hospital Info
-    // ══════════════════════════════════════════════════════════════════════
 
     @GetMapping("/hospital-info")
     public ResponseEntity<HospitalInfoResponse> getHospitalInfo(Authentication authentication) {
@@ -36,9 +35,8 @@ public class AdminController {
         return ResponseEntity.ok(adminOpdService.getHospitalInfo(adminEmail));
     }
 
-    // ══════════════════════════════════════════════════════════════════════
+
     // Doctor Management
-    // ══════════════════════════════════════════════════════════════════════
 
     @GetMapping("/doctors")
     public ResponseEntity<List<UserResponse>> getAllDoctors(Authentication authentication) {
@@ -77,9 +75,8 @@ public class AdminController {
         return ResponseEntity.ok(userService.updateUserStatus(id, "REJECTED"));
     }
 
-    // ══════════════════════════════════════════════════════════════════════
+
     // OPD Session Management - Stats & Overview
-    // ══════════════════════════════════════════════════════════════════════
 
     @GetMapping("/opd/stats/today")
     public ResponseEntity<TodayStatsResponse> getTodayStats(Authentication authentication) {
@@ -105,9 +102,8 @@ public class AdminController {
         return ResponseEntity.ok(adminOpdService.getAvailableRooms(adminEmail));
     }
 
-    // ══════════════════════════════════════════════════════════════════════
+
     // OPD Session Management - CRUD Operations
-    // ══════════════════════════════════════════════════════════════════════
 
     @PostMapping("/sessions")
     public ResponseEntity<OpdSessionResponse> createSession(
@@ -141,9 +137,8 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
-    // ══════════════════════════════════════════════════════════════════════
+
     // OPD Session Management - Additional Operations
-    // ══════════════════════════════════════════════════════════════════════
 
     @PutMapping("/sessions/{sessionId}/assign-room")
     public ResponseEntity<OpdSessionResponse> assignRoom(

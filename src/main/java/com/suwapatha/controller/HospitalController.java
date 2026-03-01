@@ -24,7 +24,7 @@ public class HospitalController {
         this.opdSessionService = opdSessionService;
     }
 
-    /** Search hospitals by name (returns all if no query given) */
+    /*Search hospitals by name (returns all if no query given) */
     @GetMapping
     public ResponseEntity<List<HospitalResponse>> getHospitals(
             @RequestParam(required = false) String search) {
@@ -40,7 +40,7 @@ public class HospitalController {
         return ResponseEntity.ok(result);
     }
 
-    /** Get upcoming OPEN OPD sessions for a specific hospital */
+    /*Get upcoming OPEN OPD sessions for a specific hospital */
     @GetMapping("/{id}/sessions")
     public ResponseEntity<List<OpdSessionResponse>> getSessions(@PathVariable String id) {
         return ResponseEntity.ok(opdSessionService.getUpcomingSessionsForHospital(id));

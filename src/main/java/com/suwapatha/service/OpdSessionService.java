@@ -19,9 +19,7 @@ public class OpdSessionService {
     private final OpdSessionRepository opdSessionRepository;
     private final HospitalRepository hospitalRepository;
 
-    /**
-     * Patient: get upcoming OPEN sessions for a hospital
-     */
+    /** Patient: get upcoming OPEN sessions for a hospital */
     public List<OpdSessionResponse> getUpcomingSessionsForHospital(String hospitalId) {
         String today = LocalDate.now().toString();
         return opdSessionRepository

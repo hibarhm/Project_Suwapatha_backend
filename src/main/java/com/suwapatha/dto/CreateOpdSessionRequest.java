@@ -11,7 +11,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CreateOpdSessionRequest {
 
-    // Hospital ID is NOT included - it will be determined from admin's authentication
 
     @NotBlank(message = "Date is required")
     private String date; // yyyy-MM-dd

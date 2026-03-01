@@ -18,8 +18,7 @@ public class AppointmentService {
     private final AppointmentRepository appointmentRepository;
     private final OpdSessionService opdSessionService;
 
-    /**
-     * Books the patient into a specific OPD session.
+    /** Books the patient into a specific OPD session.
      * Increments the session's queue count atomically.
      */
     public AppointmentResponse bookAppointment(String patientId, String patientEmail,
