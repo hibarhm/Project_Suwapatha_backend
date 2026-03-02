@@ -37,6 +37,7 @@ public class User {
     private String phoneNumber;
     private String address;
     private String emergencyContact;
+    private String bloodType;
 
     // Doctor-specific fields
     @Indexed(unique = true, sparse = true)

@@ -30,10 +30,17 @@ public class MedicalRecord {
     private String doctorName;
 
     private boolean followUpRequired;
+    private String diagnosis;
     private String consultationNotes;
 
+    // Vitals
+    private String bp;
+    private String temp;
+    private String pulse;
+    private String weight;
+
     private List<Prescription> prescriptions;
-    private List<String> labReportUrls;  // URLs to stored lab reports
+    private List<String> labReportUrls; // URLs to stored lab reports
 
     @CreatedDate
     private LocalDateTime createdAt;

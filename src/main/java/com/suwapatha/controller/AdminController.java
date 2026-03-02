@@ -1,6 +1,7 @@
 package com.suwapatha.controller;
 
 import com.suwapatha.dto.*;
+import com.suwapatha.entity.Appointment;
 import com.suwapatha.service.AdminOpdService;
 import com.suwapatha.service.UserService;
 import jakarta.validation.Valid;
@@ -26,7 +27,6 @@ public class AdminController {
         this.adminOpdService = adminOpdService;
     }
 
-
     // Hospital Info
 
     @GetMapping("/hospital-info")
@@ -34,7 +34,6 @@ public class AdminController {
         String adminEmail = authentication.getName();
         return ResponseEntity.ok(adminOpdService.getHospitalInfo(adminEmail));
     }
-
 
     // Doctor Management
 
@@ -75,7 +74,6 @@ public class AdminController {
         return ResponseEntity.ok(userService.updateUserStatus(id, "REJECTED"));
     }
 
-
     // OPD Session Management - Stats & Overview
 
     @GetMapping("/opd/stats/today")
@@ -101,7 +99,6 @@ public class AdminController {
         String adminEmail = authentication.getName();
         return ResponseEntity.ok(adminOpdService.getAvailableRooms(adminEmail));
     }
-
 
     // OPD Session Management - CRUD Operations
 
@@ -137,6 +134,13 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/sessions/{id}/patients")
+    public ResponseEntity<List<Appointment>> getSessionPatients(
+            Authentication authentication,
+            @PathVariable String id) {
+        String adminEmail = authentication.getName();
+        return ResponseEntity.ok(adminOpdService.getSessionPatients(adminEmail, id));
+    }
 
     // OPD Session Management - Additional Operations
 

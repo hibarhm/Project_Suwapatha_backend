@@ -12,7 +12,11 @@ public class AppointmentResponse {
     private String id;
     private String hospitalName;
     private String appointmentDate;
-    private int queueNumber;
+    private int queueNumber; // keep for legacy
+    private String queueNo; // frontend expects this
+    private String patientName;
+    private String time;
+    private String avatar;
     private String doctorName;
     private String room;
     private String status;

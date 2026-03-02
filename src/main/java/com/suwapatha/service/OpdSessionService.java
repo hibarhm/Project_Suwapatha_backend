@@ -31,7 +31,8 @@ public class OpdSessionService {
     }
 
     /**
-     * Called by AppointmentService when a patient books — atomically increments queue
+     * Called by AppointmentService when a patient books — atomically increments
+     * queue
      */
     public OpdSession incrementQueueAndGet(String sessionId) {
         OpdSession session = opdSessionRepository.findById(sessionId)
@@ -66,6 +67,7 @@ public class OpdSessionService {
         r.setMaxQueueSize(s.getMaxQueueSize());
         r.setCurrentQueueCount(s.getCurrentQueueCount());
         r.setAvailableSlots(s.getMaxQueueSize() - s.getCurrentQueueCount());
+        r.setSlotDuration(s.getSlotDuration());
         r.setStatus(s.getStatus());
         return r;
     }

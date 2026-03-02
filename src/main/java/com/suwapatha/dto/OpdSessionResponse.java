@@ -20,5 +20,6 @@ public class OpdSessionResponse {
     private int maxQueueSize;
     private int currentQueueCount;
     private int availableSlots;
+    private int slotDuration;
     private String status;
 }

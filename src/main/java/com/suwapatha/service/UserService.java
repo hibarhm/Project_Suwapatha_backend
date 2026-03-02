@@ -2,6 +2,7 @@ package com.suwapatha.service;
 
 import com.suwapatha.dto.UserResponse;
 import com.suwapatha.entity.User;
+import com.suwapatha.repository.HospitalRepository;
 import com.suwapatha.repository.UserRepository;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -10,12 +11,15 @@ import org.springframework.stereotype.Service;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final HospitalRepository hospitalRepository;
     private final EmailService emailService;
     private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository, EmailService emailService,
+    public UserService(UserRepository userRepository, HospitalRepository hospitalRepository,
+            EmailService emailService,
             org.springframework.security.crypto.password.PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.hospitalRepository = hospitalRepository;
         this.emailService = emailService;
         this.passwordEncoder = passwordEncoder;
     }
@@ -122,6 +126,9 @@ public class UserService {
                 .nic(user.getNic())
                 .phone(user.getPhone())
                 .hospitalId(user.getHospitalId())
+                .hospitalName(user.getHospitalId() != null ? hospitalRepository.findById(user.getHospitalId())
+                        .map(com.suwapatha.entity.Hospital::getName)
+                        .orElse(null) : null)
                 .createdAt(user.getCreatedAt())
                 .status(user.getStatus())
                 .build();

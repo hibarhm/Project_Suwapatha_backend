@@ -19,389 +19,398 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AdminOpdService {
 
-    private final OpdSessionRepository sessionRepository;
-    private final HospitalRepository hospitalRepository;
-    private final UserRepository userRepository;
+        private final OpdSessionRepository sessionRepository;
+        private final HospitalRepository hospitalRepository;
+        private final UserRepository userRepository;
+        private final AppointmentRepository appointmentRepository;
 
-    /** Get the hospital assigned to this admin */
-    public Hospital getAdminHospital(String adminEmail) {
-        log.debug("Getting hospital for admin: {}", adminEmail);
+        /** Get the hospital assigned to this admin */
+        public Hospital getAdminHospital(String adminEmail) {
+                log.debug("Getting hospital for admin: {}", adminEmail);
 
-        // Get admin user
-        User admin = userRepository.findByEmail(adminEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("Admin user not found: " + adminEmail));
+                // Get admin user
+                User admin = userRepository.findByEmail(adminEmail)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Admin user not found: " + adminEmail));
 
-        // Verify user is admin
-        if (!UserRole.ADMIN.equals(admin.getRole())) {
-            throw new IllegalArgumentException("User is not an admin: " + adminEmail);
+                // Verify user is admin
+                if (!UserRole.ADMIN.equals(admin.getRole())) {
+                        throw new IllegalArgumentException("User is not an admin: " + adminEmail);
+                }
+
+                // Get hospital for this admin
+                Hospital hospital = hospitalRepository.findByAdminId(admin.getId())
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "No hospital assigned to this admin. Please contact system administrator."));
+
+                log.debug("Admin {} manages hospital: {}", adminEmail, hospital.getName());
+                return hospital;
         }
 
-        // Get hospital for this admin
-        Hospital hospital = hospitalRepository.findByAdminId(admin.getId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "No hospital assigned to this admin. Please contact system administrator."
-                ));
-
-        log.debug("Admin {} manages hospital: {}", adminEmail, hospital.getName());
-        return hospital;
-    }
-
-
-    private String getTodayDate() {
-        return LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-    }
-
-    /** Get hospital info */
-    public HospitalInfoResponse getHospitalInfo(String adminEmail) {
-        Hospital hospital = getAdminHospital(adminEmail);
-
-        HospitalInfoResponse response = new HospitalInfoResponse();
-        response.setId(hospital.getId());
-        response.setName(hospital.getName());
-        response.setLocation(hospital.getDistrict() + ", " + hospital.getProvince());
-        response.setDistrict(hospital.getDistrict());
-        response.setProvince(hospital.getProvince());
-        response.setType(hospital.getType());
-        response.setAddress(hospital.getAddress());
-        response.setPhone(hospital.getPhone());
-
-        return response;
-    }
-
-    /**
-     * Get today's statistics for the admin's hospital
-     */
-    public TodayStatsResponse getTodayStats(String adminEmail) {
-        Hospital hospital = getAdminHospital(adminEmail);
-        String today = getTodayDate();
-
-        log.debug("Getting today's stats for hospital: {}", hospital.getName());
-
-        // Get today's sessions
-        List<OpdSession> todaySessions = sessionRepository
-                .findByHospitalIdAndDateGreaterThanEqualAndStatusOrderByDateAscStartTimeAsc(
-                        hospital.getId(),
-                        today,
-                        "OPEN"
-                )
-                .stream()
-                .filter(s -> s.getDate().equals(today))
-                .collect(Collectors.toList());
-
-        // Calculate statistics
-        int totalSlots = todaySessions.stream()
-                .mapToInt(OpdSession::getMaxQueueSize)
-                .sum();
-
-        int allocatedPatients = todaySessions.stream()
-                .mapToInt(OpdSession::getCurrentQueueCount)
-                .sum();
-
-        int unallocatedPatients = Math.max(0, totalSlots - allocatedPatients);
-
-        int totalDoctors = todaySessions.size();
-
-        int activeDoctors = (int) todaySessions.stream()
-                .filter(s -> s.getDoctorName() != null && !s.getDoctorName().isEmpty())
-                .filter(s -> s.getRoom() != null && !s.getRoom().isEmpty())
-                .count();
-
-        long activeSessions = todaySessions.stream()
-                .filter(s -> "OPEN".equals(s.getStatus()))
-                .count();
-
-        return TodayStatsResponse.builder()
-                .totalPatients(totalSlots)
-                .allocatedPatients(allocatedPatients)
-                .unallocatedPatients(unallocatedPatients)
-                .activeDoctors(activeDoctors)
-                .totalDoctors(totalDoctors)
-                .activeSessions((int) activeSessions)
-                .build();
-    }
-
-    /**
-     * Get today's sessions for the admin's hospital
-     */
-    public List<OpdSessionResponse> getTodaySessions(String adminEmail) {
-        Hospital hospital = getAdminHospital(adminEmail);
-        String today = getTodayDate();
-
-        log.debug("Getting today's sessions for hospital: {}", hospital.getName());
-
-        List<OpdSession> sessions = sessionRepository
-                .findByHospitalIdAndDateGreaterThanEqualAndStatusOrderByDateAscStartTimeAsc(
-                        hospital.getId(),
-                        today,
-                        "OPEN"
-                )
-                .stream()
-                .filter(s -> s.getDate().equals(today))
-                .collect(Collectors.toList());
-
-        return sessions.stream()
-                .map(this::convertToResponse)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Get upcoming sessions (next 7 days) for the admin's hospital
-     */
-    public List<OpdSessionResponse> getUpcomingSessions(String adminEmail) {
-        Hospital hospital = getAdminHospital(adminEmail);
-        String today = getTodayDate();
-        String endDate = LocalDate.now().plusDays(7)
-                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-
-        log.debug("Getting upcoming sessions for hospital: {}", hospital.getName());
-
-        List<OpdSession> sessions = sessionRepository
-                .findByHospitalIdAndDateGreaterThanEqualAndStatusOrderByDateAscStartTimeAsc(
-                        hospital.getId(),
-                        today,
-                        "OPEN"
-                )
-                .stream()
-                .filter(s -> s.getDate().compareTo(today) > 0 && s.getDate().compareTo(endDate) <= 0)
-                .collect(Collectors.toList());
-
-        return sessions.stream()
-                .map(this::convertToResponse)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Create new OPD session - hospital is automatically set from admin's authentication
-     */
-    @Transactional
-    public OpdSessionResponse createSession(String adminEmail, CreateOpdSessionRequest request) {
-        Hospital hospital = getAdminHospital(adminEmail);
-
-        log.info("Admin {} creating session for hospital: {}", adminEmail, hospital.getName());
-
-        OpdSession session = new OpdSession();
-        session.setHospitalId(hospital.getId());
-        session.setHospitalName(hospital.getName());
-        session.setDate(request.getDate());
-        session.setStartTime(request.getStartTime());
-        session.setEndTime(request.getEndTime());
-        session.setDepartment(request.getDepartment());
-        session.setDoctorName(request.getDoctorName() != null ? request.getDoctorName() : "");
-        session.setRoom(request.getRoom() != null ? request.getRoom() : "");
-        session.setMaxQueueSize(request.getMaxQueueSize());
-        session.setCurrentQueueCount(0);
-        session.setStatus("OPEN");
-
-        session = sessionRepository.save(session);
-
-        log.info("Session created successfully: {}", session.getId());
-
-        return convertToResponse(session);
-    }
-
-    /**
-     * Update existing session - verifies session belongs to admin's hospital
-     */
-    @Transactional
-    public OpdSessionResponse updateSession(String adminEmail, String sessionId,
-                                            UpdateOpdSessionRequest request) {
-        Hospital hospital = getAdminHospital(adminEmail);
-
-        OpdSession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Session not found: " + sessionId));
-
-        // Security check: Verify session belongs to admin's hospital
-        if (!session.getHospitalId().equals(hospital.getId())) {
-            throw new IllegalArgumentException(
-                    "You can only update sessions for your assigned hospital"
-            );
+        private String getTodayDate() {
+                return LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         }
 
-        log.info("Admin {} updating session: {}", adminEmail, sessionId);
+        /** Get hospital info */
+        public HospitalInfoResponse getHospitalInfo(String adminEmail) {
+                Hospital hospital = getAdminHospital(adminEmail);
 
-        // Update fields
-        if (request.getDoctorName() != null) {
-            session.setDoctorName(request.getDoctorName());
-        }
-        if (request.getRoom() != null) {
-            session.setRoom(request.getRoom());
-        }
-        if (request.getStartTime() != null) {
-            session.setStartTime(request.getStartTime());
-        }
-        if (request.getEndTime() != null) {
-            session.setEndTime(request.getEndTime());
-        }
-        if (request.getDepartment() != null) {
-            session.setDepartment(request.getDepartment());
-        }
-        if (request.getMaxQueueSize() != null) {
-            session.setMaxQueueSize(request.getMaxQueueSize());
-        }
-        if (request.getStatus() != null) {
-            session.setStatus(request.getStatus());
+                HospitalInfoResponse response = new HospitalInfoResponse();
+                response.setId(hospital.getId());
+                response.setName(hospital.getName());
+                response.setLocation(hospital.getDistrict() + ", " + hospital.getProvince());
+                response.setDistrict(hospital.getDistrict());
+                response.setProvince(hospital.getProvince());
+                response.setType(hospital.getType());
+                response.setAddress(hospital.getAddress());
+                response.setPhone(hospital.getPhone());
+
+                return response;
         }
 
-        session = sessionRepository.save(session);
+        /**
+         * Get today's statistics for the admin's hospital
+         */
+        public TodayStatsResponse getTodayStats(String adminEmail) {
+                Hospital hospital = getAdminHospital(adminEmail);
+                String today = getTodayDate();
 
-        return convertToResponse(session);
-    }
+                log.debug("Getting today's stats for hospital: {}", hospital.getName());
 
-    /**
-     * Assign room to session
-     */
-    @Transactional
-    public OpdSessionResponse assignRoom(String adminEmail, String sessionId, String room) {
-        Hospital hospital = getAdminHospital(adminEmail);
+                // Get today's sessions
+                List<OpdSession> todaySessions = sessionRepository
+                                .findByHospitalIdAndDateGreaterThanEqualAndStatusOrderByDateAscStartTimeAsc(
+                                                hospital.getId(),
+                                                today,
+                                                "OPEN")
+                                .stream()
+                                .filter(s -> s.getDate().equals(today))
+                                .collect(Collectors.toList());
 
-        OpdSession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+                // Calculate statistics
+                int totalSlots = todaySessions.stream()
+                                .mapToInt(OpdSession::getMaxQueueSize)
+                                .sum();
 
-        // Security check
-        if (!session.getHospitalId().equals(hospital.getId())) {
-            throw new IllegalArgumentException(
-                    "Session does not belong to your hospital"
-            );
+                int allocatedPatients = todaySessions.stream()
+                                .mapToInt(OpdSession::getCurrentQueueCount)
+                                .sum();
+
+                int unallocatedPatients = Math.max(0, totalSlots - allocatedPatients);
+
+                int totalDoctors = todaySessions.size();
+
+                int activeDoctors = (int) todaySessions.stream()
+                                .filter(s -> s.getDoctorName() != null && !s.getDoctorName().isEmpty())
+                                .filter(s -> s.getRoom() != null && !s.getRoom().isEmpty())
+                                .count();
+
+                long activeSessions = todaySessions.stream()
+                                .filter(s -> "OPEN".equals(s.getStatus()))
+                                .count();
+
+                return TodayStatsResponse.builder()
+                                .totalPatients(totalSlots)
+                                .allocatedPatients(allocatedPatients)
+                                .unallocatedPatients(unallocatedPatients)
+                                .activeDoctors(activeDoctors)
+                                .totalDoctors(totalDoctors)
+                                .activeSessions((int) activeSessions)
+                                .build();
         }
 
-        log.info("Assigning room {} to session {}", room, sessionId);
+        /**
+         * Get today's sessions for the admin's hospital
+         */
+        public List<OpdSessionResponse> getTodaySessions(String adminEmail) {
+                Hospital hospital = getAdminHospital(adminEmail);
+                String today = getTodayDate();
 
-        session.setRoom(room);
-        session = sessionRepository.save(session);
+                log.debug("Getting today's sessions for hospital: {}", hospital.getName());
 
-        return convertToResponse(session);
-    }
+                List<OpdSession> sessions = sessionRepository
+                                .findByHospitalIdAndDateGreaterThanEqualAndStatusOrderByDateAscStartTimeAsc(
+                                                hospital.getId(),
+                                                today,
+                                                "OPEN")
+                                .stream()
+                                .filter(s -> s.getDate().equals(today))
+                                .collect(Collectors.toList());
 
-    /**
-     * Assign doctor to session
-     */
-    @Transactional
-    public OpdSessionResponse assignDoctor(String adminEmail, String sessionId, String doctorName) {
-        Hospital hospital = getAdminHospital(adminEmail);
-
-        OpdSession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
-
-        // Security check
-        if (!session.getHospitalId().equals(hospital.getId())) {
-            throw new IllegalArgumentException(
-                    "Session does not belong to your hospital"
-            );
+                return sessions.stream()
+                                .map(this::convertToResponse)
+                                .collect(Collectors.toList());
         }
 
-        log.info("Assigning doctor {} to session {}", doctorName, sessionId);
+        /**
+         * Get upcoming sessions (next 7 days) for the admin's hospital
+         */
+        public List<OpdSessionResponse> getUpcomingSessions(String adminEmail) {
+                Hospital hospital = getAdminHospital(adminEmail);
+                String today = getTodayDate();
+                String endDate = LocalDate.now().plusDays(7)
+                                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 
-        session.setDoctorName(doctorName);
-        session = sessionRepository.save(session);
+                log.debug("Getting upcoming sessions for hospital: {}", hospital.getName());
 
-        return convertToResponse(session);
-    }
+                List<OpdSession> sessions = sessionRepository
+                                .findByHospitalIdAndDateGreaterThanEqualAndStatusOrderByDateAscStartTimeAsc(
+                                                hospital.getId(),
+                                                today,
+                                                "OPEN")
+                                .stream()
+                                .filter(s -> s.getDate().compareTo(today) > 0 && s.getDate().compareTo(endDate) <= 0)
+                                .collect(Collectors.toList());
 
-    /**
-     * Update session status
-     */
-    @Transactional
-    public OpdSessionResponse updateSessionStatus(String adminEmail, String sessionId, String status) {
-        Hospital hospital = getAdminHospital(adminEmail);
-
-        OpdSession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
-
-        // Security check
-        if (!session.getHospitalId().equals(hospital.getId())) {
-            throw new IllegalArgumentException(
-                    "Session does not belong to your hospital"
-            );
+                return sessions.stream()
+                                .map(this::convertToResponse)
+                                .collect(Collectors.toList());
         }
 
-        log.info("Updating session {} status to: {}", sessionId, status);
+        /**
+         * Create new OPD session - hospital is automatically set from admin's
+         * authentication
+         */
+        @Transactional
+        public OpdSessionResponse createSession(String adminEmail, CreateOpdSessionRequest request) {
+                Hospital hospital = getAdminHospital(adminEmail);
 
-        session.setStatus(status);
-        session = sessionRepository.save(session);
+                log.info("Admin {} creating session for hospital: {}", adminEmail, hospital.getName());
 
-        return convertToResponse(session);
-    }
+                OpdSession session = new OpdSession();
+                session.setHospitalId(hospital.getId());
+                session.setHospitalName(hospital.getName());
+                session.setDate(request.getDate());
+                session.setStartTime(request.getStartTime());
+                session.setEndTime(request.getEndTime());
+                session.setDepartment(request.getDepartment());
+                session.setDoctorName(request.getDoctorName() != null ? request.getDoctorName() : "");
+                session.setRoom(request.getRoom() != null ? request.getRoom() : "");
+                session.setMaxQueueSize(request.getMaxQueueSize());
+                session.setSlotDuration(request.getSlotDuration());
+                session.setCurrentQueueCount(0);
+                session.setStatus("OPEN");
 
-    /**
-     * Cancel session - verifies session belongs to admin's hospital
-     */
-    @Transactional
-    public void cancelSession(String adminEmail, String sessionId) {
-        Hospital hospital = getAdminHospital(adminEmail);
+                session = sessionRepository.save(session);
 
-        OpdSession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Session not found: " + sessionId));
+                log.info("Session created successfully: {}", session.getId());
 
-        // Security check
-        if (!session.getHospitalId().equals(hospital.getId())) {
-            throw new IllegalArgumentException(
-                    "You can only cancel sessions for your assigned hospital"
-            );
+                return convertToResponse(session);
         }
 
-        log.info("Admin {} cancelling session: {}", adminEmail, sessionId);
+        /**
+         * Update existing session - verifies session belongs to admin's hospital
+         */
+        @Transactional
+        public OpdSessionResponse updateSession(String adminEmail, String sessionId,
+                        UpdateOpdSessionRequest request) {
+                Hospital hospital = getAdminHospital(adminEmail);
 
-        session.setStatus("CANCELLED");
-        sessionRepository.save(session);
-    }
+                OpdSession session = sessionRepository.findById(sessionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Session not found: " + sessionId));
 
-    /**
-     * Get all sessions for admin's hospital
-     */
-    public List<OpdSessionResponse> getAllSessions(String adminEmail) {
-        Hospital hospital = getAdminHospital(adminEmail);
+                // Security check: Verify session belongs to admin's hospital
+                if (!session.getHospitalId().equals(hospital.getId())) {
+                        throw new IllegalArgumentException(
+                                        "You can only update sessions for your assigned hospital");
+                }
 
-        log.debug("Getting all sessions for hospital: {}", hospital.getName());
+                log.info("Admin {} updating session: {}", adminEmail, sessionId);
 
-        List<OpdSession> sessions = sessionRepository
-                .findByHospitalIdOrderByDateDescStartTimeDesc(hospital.getId());
+                // Update fields
+                if (request.getDoctorName() != null) {
+                        session.setDoctorName(request.getDoctorName());
+                }
+                if (request.getRoom() != null) {
+                        session.setRoom(request.getRoom());
+                }
+                if (request.getStartTime() != null) {
+                        session.setStartTime(request.getStartTime());
+                }
+                if (request.getEndTime() != null) {
+                        session.setEndTime(request.getEndTime());
+                }
+                if (request.getDepartment() != null) {
+                        session.setDepartment(request.getDepartment());
+                }
+                if (request.getMaxQueueSize() != null) {
+                        session.setMaxQueueSize(request.getMaxQueueSize());
+                }
+                if (request.getStatus() != null) {
+                        session.setStatus(request.getStatus());
+                }
 
-        return sessions.stream()
-                .map(this::convertToResponse)
-                .collect(Collectors.toList());
-    }
+                session = sessionRepository.save(session);
 
-    /**
-     * Get available rooms for the hospital
-     */
-    public List<String> getAvailableRooms(String adminEmail) {
-        // In a real system, this would come from the hospital configuration
-        // For now, returning a default list
-        return List.of(
-                "OPD Room 1", "OPD Room 2", "OPD Room 3", "OPD Room 4",
-                "OPD Room 5", "OPD Room 6", "OPD Room 7", "OPD Room 8"
-        );
-    }
+                return convertToResponse(session);
+        }
 
-    /**
-     * Convert OpdSession entity to response DTO
-     */
-    private OpdSessionResponse convertToResponse(OpdSession session) {
-        int availableSlots = session.getMaxQueueSize() - session.getCurrentQueueCount();
+        /**
+         * Assign room to session
+         */
+        @Transactional
+        public OpdSessionResponse assignRoom(String adminEmail, String sessionId, String room) {
+                Hospital hospital = getAdminHospital(adminEmail);
 
-        OpdSessionResponse response = new OpdSessionResponse();
-        response.setId(session.getId());
-        response.setHospitalId(session.getHospitalId());
-        response.setHospitalName(session.getHospitalName());
-        response.setDate(session.getDate());
-        response.setStartTime(session.getStartTime());
-        response.setEndTime(session.getEndTime());
-        response.setDepartment(session.getDepartment());
-        response.setDoctorName(
-                session.getDoctorName() != null && !session.getDoctorName().isEmpty()
-                        ? session.getDoctorName()
-                        : "Not Assigned"
-        );
-        response.setRoom(
-                session.getRoom() != null && !session.getRoom().isEmpty()
-                        ? session.getRoom()
-                        : "Not Assigned"
-        );
-        response.setMaxQueueSize(session.getMaxQueueSize());
-        response.setCurrentQueueCount(session.getCurrentQueueCount());
-        response.setAvailableSlots(Math.max(0, availableSlots));
-        response.setStatus(session.getStatus());
+                OpdSession session = sessionRepository.findById(sessionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
 
-        return response;
-    }
+                // Security check
+                if (!session.getHospitalId().equals(hospital.getId())) {
+                        throw new IllegalArgumentException(
+                                        "Session does not belong to your hospital");
+                }
+
+                log.info("Assigning room {} to session {}", room, sessionId);
+
+                session.setRoom(room);
+                session = sessionRepository.save(session);
+
+                return convertToResponse(session);
+        }
+
+        /**
+         * Assign doctor to session
+         */
+        @Transactional
+        public OpdSessionResponse assignDoctor(String adminEmail, String sessionId, String doctorName) {
+                Hospital hospital = getAdminHospital(adminEmail);
+
+                OpdSession session = sessionRepository.findById(sessionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+
+                // Security check
+                if (!session.getHospitalId().equals(hospital.getId())) {
+                        throw new IllegalArgumentException(
+                                        "Session does not belong to your hospital");
+                }
+
+                log.info("Assigning doctor {} to session {}", doctorName, sessionId);
+
+                session.setDoctorName(doctorName);
+                session = sessionRepository.save(session);
+
+                return convertToResponse(session);
+        }
+
+        /**
+         * Update session status
+         */
+        @Transactional
+        public OpdSessionResponse updateSessionStatus(String adminEmail, String sessionId, String status) {
+                Hospital hospital = getAdminHospital(adminEmail);
+
+                OpdSession session = sessionRepository.findById(sessionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+
+                // Security check
+                if (!session.getHospitalId().equals(hospital.getId())) {
+                        throw new IllegalArgumentException(
+                                        "Session does not belong to your hospital");
+                }
+
+                log.info("Updating session {} status to: {}", sessionId, status);
+
+                session.setStatus(status);
+                session = sessionRepository.save(session);
+
+                return convertToResponse(session);
+        }
+
+        /**
+         * Cancel session - verifies session belongs to admin's hospital
+         */
+        @Transactional
+        public void cancelSession(String adminEmail, String sessionId) {
+                Hospital hospital = getAdminHospital(adminEmail);
+
+                OpdSession session = sessionRepository.findById(sessionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Session not found: " + sessionId));
+
+                // Security check
+                if (!session.getHospitalId().equals(hospital.getId())) {
+                        throw new IllegalArgumentException(
+                                        "You can only cancel sessions for your assigned hospital");
+                }
+
+                log.info("Admin {} cancelling session: {}", adminEmail, sessionId);
+
+                session.setStatus("CANCELLED");
+                sessionRepository.save(session);
+        }
+
+        /**
+         * Get patients for a specific session
+         */
+        public List<Appointment> getSessionPatients(String adminEmail, String sessionId) {
+                Hospital hospital = getAdminHospital(adminEmail);
+
+                OpdSession session = sessionRepository.findById(sessionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+
+                if (!session.getHospitalId().equals(hospital.getId())) {
+                        throw new IllegalArgumentException("Session does not belong to your hospital");
+                }
+
+                // This is a simple implementation, you might want to map to a DTO
+                return appointmentRepository.findBySessionIdOrderByQueueNumberAsc(sessionId);
+        }
+
+        /**
+         * Get all sessions for admin's hospital
+         */
+        public List<OpdSessionResponse> getAllSessions(String adminEmail) {
+                Hospital hospital = getAdminHospital(adminEmail);
+
+                log.debug("Getting all sessions for hospital: {}", hospital.getName());
+
+                List<OpdSession> sessions = sessionRepository
+                                .findByHospitalIdOrderByDateDescStartTimeDesc(hospital.getId());
+
+                return sessions.stream()
+                                .map(this::convertToResponse)
+                                .collect(Collectors.toList());
+        }
+
+        /**
+         * Get available rooms for the hospital
+         */
+        public List<String> getAvailableRooms(String adminEmail) {
+                // In a real system, this would come from the hospital configuration
+                // For now, returning a default list
+                return List.of(
+                                "OPD Room 1", "OPD Room 2", "OPD Room 3", "OPD Room 4",
+                                "OPD Room 5", "OPD Room 6", "OPD Room 7", "OPD Room 8");
+        }
+
+        /**
+         * Convert OpdSession entity to response DTO
+         */
+        private OpdSessionResponse convertToResponse(OpdSession session) {
+                int availableSlots = session.getMaxQueueSize() - session.getCurrentQueueCount();
+
+                OpdSessionResponse response = new OpdSessionResponse();
+                response.setId(session.getId());
+                response.setHospitalId(session.getHospitalId());
+                response.setHospitalName(session.getHospitalName());
+                response.setDate(session.getDate());
+                response.setStartTime(session.getStartTime());
+                response.setEndTime(session.getEndTime());
+                response.setDepartment(session.getDepartment());
+                response.setDoctorName(
+                                session.getDoctorName() != null && !session.getDoctorName().isEmpty()
+                                                ? session.getDoctorName()
+                                                : "Not Assigned");
+                response.setRoom(
+                                session.getRoom() != null && !session.getRoom().isEmpty()
+                                                ? session.getRoom()
+                                                : "Not Assigned");
+                response.setMaxQueueSize(session.getMaxQueueSize());
+                response.setCurrentQueueCount(session.getCurrentQueueCount());
+                response.setAvailableSlots(Math.max(0, availableSlots));
+                response.setSlotDuration(session.getSlotDuration());
+                response.setStatus(session.getStatus());
+
+                return response;
+        }
 }

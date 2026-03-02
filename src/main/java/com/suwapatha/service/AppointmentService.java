@@ -18,11 +18,12 @@ public class AppointmentService {
     private final AppointmentRepository appointmentRepository;
     private final OpdSessionService opdSessionService;
 
-    /** Books the patient into a specific OPD session.
+    /**
+     * Books the patient into a specific OPD session.
      * Increments the session's queue count atomically.
      */
     public AppointmentResponse bookAppointment(String patientId, String patientEmail,
-                                               BookAppointmentRequest request) {
+            BookAppointmentRequest request) {
         OpdSession session = opdSessionService.incrementQueueAndGet(request.getSessionId());
 
         Appointment appointment = new Appointment();
@@ -35,7 +36,11 @@ public class AppointmentService {
         appointment.setDoctorName(session.getDoctorName());
         appointment.setRoom(session.getRoom());
         appointment.setStatus("BOOKED");
-        appointment.setEstimatedWaitMinutes((session.getCurrentQueueCount() - 1) * 15);
+
+        // Estimated wait = (people ahead) * duration
+        int ahead = Math.max(0, session.getCurrentQueueCount() - 1);
+        int duration = session.getSlotDuration() > 0 ? session.getSlotDuration() : 15;
+        appointment.setEstimatedWaitMinutes(ahead * duration);
 
         return toResponse(appointmentRepository.save(appointment));
     }

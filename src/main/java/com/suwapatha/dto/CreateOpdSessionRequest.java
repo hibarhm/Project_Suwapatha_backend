@@ -11,7 +11,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CreateOpdSessionRequest {
 
-
     @NotBlank(message = "Date is required")
     private String date; // yyyy-MM-dd
 
@@ -29,4 +28,7 @@ public class CreateOpdSessionRequest {
 
     @Min(value = 1, message = "Max queue size must be at least 1")
     private int maxQueueSize;
+
+    @Min(value = 1, message = "Slot duration must be at least 1 minute")
+    private int slotDuration;
 }

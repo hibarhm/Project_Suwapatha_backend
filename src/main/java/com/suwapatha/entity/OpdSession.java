@@ -31,6 +31,7 @@ public class OpdSession {
 
     private int maxQueueSize;
     private int currentQueueCount;
+    private int slotDuration;
 
     // OPEN | FULL | CANCELLED
     private String status;
