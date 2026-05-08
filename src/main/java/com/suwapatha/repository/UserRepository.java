@@ -22,4 +22,7 @@ public interface UserRepository extends MongoRepository<User, String> {
     List<User> findByRole(UserRole role);
 
     List<User> findByRoleAndHospitalId(UserRole role, String hospitalId);
+
+    long countByRole(UserRole role);
 }
+

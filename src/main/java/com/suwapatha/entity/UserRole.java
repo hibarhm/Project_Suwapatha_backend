@@ -3,5 +3,6 @@ package com.suwapatha.entity;
 public enum UserRole {
     PATIENT,
     DOCTOR,
-    ADMIN
+    ADMIN,
+    SUPER_ADMIN
 }
