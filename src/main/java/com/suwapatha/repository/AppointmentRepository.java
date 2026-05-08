@@ -26,4 +26,10 @@ public interface AppointmentRepository extends MongoRepository<Appointment, Stri
     List<Appointment> findByDoctorName(String doctorName);
 
     List<Appointment> findBySessionIdOrderByQueueNumberAsc(String sessionId);
+
+    /**
+     * Used by SMS reminder scheduler: all BOOKED, not yet notified, with a session
+     * start time stored
+     */
+    List<Appointment> findByStatusAndSmsSentFalseAndSessionStartTimeNotNull(String status);
 }

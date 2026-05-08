@@ -21,5 +21,7 @@ public class AppointmentResponse {
     private String room;
     private String status;
     private int estimatedWaitMinutes;
+    private String sessionStartTime; // HH:mm
+    private int slotDuration; // minutes per slot
     private String createdAt;
 }

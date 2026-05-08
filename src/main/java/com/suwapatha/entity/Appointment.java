@@ -36,6 +36,11 @@ public class Appointment {
 
     private int estimatedWaitMinutes;
 
+    private String sessionStartTime; // HH:mm copied from OpdSession at booking time
+    private int slotDuration; // minutes per slot, copied from OpdSession
+
+    private boolean smsSent = false; // true once the 15-min reminder SMS has been dispatched
+
     @CreatedDate
     private LocalDateTime createdAt;
 }

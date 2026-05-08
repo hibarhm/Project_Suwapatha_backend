@@ -44,6 +44,12 @@ public class AdminController {
         return ResponseEntity.ok(userService.getDoctorsByHospital(hospitalId));
     }
 
+    @GetMapping("/doctors/available-today")
+    public ResponseEntity<List<DoctorAvailabilityResponse>> getAvailableDoctorsToday(Authentication authentication) {
+        String adminEmail = authentication.getName();
+        return ResponseEntity.ok(adminOpdService.getTodayAvailableDoctors(adminEmail));
+    }
+
     @PutMapping("/doctors/{id}/approve")
     public ResponseEntity<UserResponse> approveDoctor(Authentication authentication, @PathVariable String id) {
         String adminEmail = authentication.getName();
@@ -172,5 +178,24 @@ public class AdminController {
         String adminEmail = authentication.getName();
         String status = body.get("status");
         return ResponseEntity.ok(adminOpdService.updateSessionStatus(adminEmail, sessionId, status));
+    }
+
+    @PutMapping("/availability/{id}/room")
+    public ResponseEntity<DoctorAvailabilityResponse> assignDoctorRoom(
+            Authentication authentication,
+            @PathVariable String id,
+            @RequestBody Map<String, String> body) {
+        String adminEmail = authentication.getName();
+        String room = body.get("room");
+        return ResponseEntity.ok(adminOpdService.assignDoctorRoom(adminEmail, id, room));
+    }
+
+    @PostMapping("/sessions/{sessionId}/allocate")
+    public ResponseEntity<Void> allocatePatients(
+            Authentication authentication,
+            @PathVariable String sessionId) {
+        String adminEmail = authentication.getName();
+        adminOpdService.allocatePatientsEqually(adminEmail, sessionId);
+        return ResponseEntity.ok().build();
     }
 }

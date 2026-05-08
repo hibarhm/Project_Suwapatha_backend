@@ -2,15 +2,18 @@ package com.suwapatha.service;
 
 import com.suwapatha.dto.AppointmentResponse;
 import com.suwapatha.dto.ConsultationRequest;
+import com.suwapatha.dto.DoctorAvailabilityResponse;
 import com.suwapatha.dto.DoctorDashboardResponse;
 import com.suwapatha.dto.DoctorPatientResponse;
 import com.suwapatha.dto.PatientDetailsResponse;
 import com.suwapatha.entity.Appointment;
+import com.suwapatha.entity.DoctorAvailability;
 import com.suwapatha.entity.MedicalRecord;
 import com.suwapatha.entity.OpdSession;
 import com.suwapatha.entity.Prescription;
 import com.suwapatha.entity.User;
 import com.suwapatha.repository.AppointmentRepository;
+import com.suwapatha.repository.DoctorAvailabilityRepository;
 import com.suwapatha.repository.MedicalRecordRepository;
 import com.suwapatha.repository.NotificationRepository;
 import com.suwapatha.repository.OpdSessionRepository;
@@ -37,6 +40,7 @@ public class DoctorDashboardService {
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
     private final MedicalRecordRepository medicalRecordRepository;
+    private final DoctorAvailabilityRepository availabilityRepository;
 
     public DoctorDashboardResponse getDashboardData(String doctorEmail) {
         log.info("Fetching dashboard data for doctor: {}", doctorEmail);
@@ -310,5 +314,68 @@ public class DoctorDashboardService {
         r.setAvatar(""); // Optional avatar URL
         r.setCreatedAt(a.getCreatedAt() != null ? a.getCreatedAt().toString() : "");
         return r;
+    }
+
+    // ── Availability ──────────────────────────────────────────────────────────
+
+    /**
+     * Returns today's availability record for the logged-in doctor (never null).
+     */
+    public DoctorAvailabilityResponse getMyAvailabilityToday(String email) {
+        User doctor = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+        String today = LocalDate.now().toString();
+        DoctorAvailability rec = availabilityRepository
+                .findByDoctorIdAndDate(doctor.getId(), today)
+                .orElse(DoctorAvailability.builder()
+                        .doctorId(doctor.getId())
+                        .doctorName(doctor.getFirstName() + " " + doctor.getLastName())
+                        .email(email)
+                        .date(today)
+                        .available(false)
+                        .build());
+        return toAvailabilityResponse(rec);
+    }
+
+    /**
+     * Upserts today's availability record for the doctor.
+     * 
+     * @param email     logged-in doctor email
+     * @param available true = marking in, false = marking out
+     * @param note      optional note
+     */
+    public DoctorAvailabilityResponse setMyAvailability(String email, boolean available, String note) {
+        User doctor = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+        String today = LocalDate.now().toString();
+
+        DoctorAvailability rec = availabilityRepository
+                .findByDoctorIdAndDate(doctor.getId(), today)
+                .orElseGet(() -> DoctorAvailability.builder()
+                        .doctorId(doctor.getId())
+                        .doctorName(doctor.getFirstName() + " " + doctor.getLastName())
+                        .email(email)
+                        .date(today)
+                        .build());
+
+        rec.setAvailable(available);
+        rec.setNote(note);
+        availabilityRepository.save(rec);
+        log.info("Doctor {} marked {} for {}", email, available ? "AVAILABLE" : "UNAVAILABLE", today);
+        return toAvailabilityResponse(rec);
+    }
+
+    private DoctorAvailabilityResponse toAvailabilityResponse(DoctorAvailability r) {
+        return DoctorAvailabilityResponse.builder()
+                .id(r.getId())
+                .doctorId(r.getDoctorId())
+                .doctorName(r.getDoctorName())
+                .email(r.getEmail())
+                .date(r.getDate())
+                .available(r.isAvailable())
+                .note(r.getNote())
+                .room(r.getRoom())
+                .updatedAt(r.getUpdatedAt() != null ? r.getUpdatedAt().toString() : null)
+                .build();
     }
 }

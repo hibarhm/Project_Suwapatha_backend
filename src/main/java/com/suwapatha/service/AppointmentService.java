@@ -42,6 +42,10 @@ public class AppointmentService {
         int duration = session.getSlotDuration() > 0 ? session.getSlotDuration() : 15;
         appointment.setEstimatedWaitMinutes(ahead * duration);
 
+        // Store session time info so the frontend can compute UTC appointment time
+        appointment.setSessionStartTime(session.getStartTime());
+        appointment.setSlotDuration(duration);
+
         return toResponse(appointmentRepository.save(appointment));
     }
 
@@ -81,6 +85,8 @@ public class AppointmentService {
         r.setRoom(a.getRoom());
         r.setStatus(a.getStatus());
         r.setEstimatedWaitMinutes(a.getEstimatedWaitMinutes());
+        r.setSessionStartTime(a.getSessionStartTime());
+        r.setSlotDuration(a.getSlotDuration());
         r.setCreatedAt(a.getCreatedAt() != null ? a.getCreatedAt().toString() : "");
         return r;
     }

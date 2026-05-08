@@ -1,6 +1,7 @@
 package com.suwapatha.controller;
 
 import com.suwapatha.dto.ConsultationRequest;
+import com.suwapatha.dto.DoctorAvailabilityResponse;
 import com.suwapatha.dto.DoctorDashboardResponse;
 import com.suwapatha.dto.DoctorPatientResponse;
 import com.suwapatha.dto.PatientDetailsResponse;
@@ -9,11 +10,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/doctor")
@@ -66,5 +66,27 @@ public class DoctorDashboardController {
         String doctorEmail = authentication.getName();
         doctorDashboardService.saveConsultation(request, doctorEmail);
         return ResponseEntity.ok("Consultation saved successfully");
+    }
+
+    // ── Availability Toggle ───────────────────────────────────────────────────
+
+    @GetMapping("/availability/today")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('DOCTOR')")
+    public ResponseEntity<DoctorAvailabilityResponse> getAvailabilityToday(Authentication authentication) {
+        if (authentication == null)
+            return ResponseEntity.status(401).build();
+        return ResponseEntity.ok(doctorDashboardService.getMyAvailabilityToday(authentication.getName()));
+    }
+
+    @PutMapping("/availability/today")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('DOCTOR')")
+    public ResponseEntity<DoctorAvailabilityResponse> setAvailabilityToday(
+            Authentication authentication,
+            @RequestBody Map<String, Object> body) {
+        if (authentication == null)
+            return ResponseEntity.status(401).build();
+        boolean available = Boolean.TRUE.equals(body.get("available"));
+        String note = body.getOrDefault("note", "").toString();
+        return ResponseEntity.ok(doctorDashboardService.setMyAvailability(authentication.getName(), available, note));
     }
 }
