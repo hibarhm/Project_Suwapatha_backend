@@ -133,18 +133,27 @@ public class AuthService {
     }
 
     public AuthResponse loginDoctor(DoctorLoginRequest request) {
-        // Find doctor by doctorId
-        User user = userRepository.findByDoctorId(request.getDoctorId())
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid doctor ID or password"));
+        String identifier = request.getDoctorId();
+        User user;
+
+        if (identifier.contains("@")) {
+            // Find doctor by email
+            user = userRepository.findByEmail(identifier)
+                    .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
+        } else {
+            // Find doctor by doctorId
+            user = userRepository.findByDoctorId(identifier)
+                    .orElseThrow(() -> new InvalidCredentialsException("Invalid doctor ID or password"));
+        }
 
         // Verify it's a doctor
         if (user.getRole() != UserRole.DOCTOR) {
-            throw new InvalidCredentialsException("Invalid doctor ID or password");
+            throw new InvalidCredentialsException("Unauthorized: Access restricted to doctors.");
         }
 
         // Verify password
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new InvalidCredentialsException("Invalid doctor ID or password");
+            throw new InvalidCredentialsException("Invalid credentials");
         }
 
         // Generate JWT token
@@ -161,10 +170,15 @@ public class AuthService {
                 .build();
     }
 
-    public AuthResponse login(LoginRequest request) {
+    public AuthResponse loginAdmin(LoginRequest request) {
         // Find user by email
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
+
+        // Verify it's an admin
+        if (user.getRole() != UserRole.ADMIN) {
+            throw new InvalidCredentialsException("Unauthorized: Access restricted to administrators.");
+        }
 
         // Verify password
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
@@ -184,4 +198,34 @@ public class AuthService {
                 .expiresIn(jwtUtil.getExpirationTime())
                 .build();
     }
+
+    public AuthResponse loginSuperAdmin(LoginRequest request) {
+        // Find user by email
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
+
+        // Verify it's a super admin
+        if (user.getRole() != UserRole.SUPER_ADMIN) {
+            throw new InvalidCredentialsException("Unauthorized: Access restricted to super administrators.");
+        }
+
+        // Verify password
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new InvalidCredentialsException("Invalid email or password");
+        }
+
+        // Generate JWT token
+        String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
+
+        return AuthResponse.builder()
+                .token(token)
+                .id(user.getId())
+                .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .role(user.getRole())
+                .expiresIn(jwtUtil.getExpirationTime())
+                .build();
+    }
+
 }

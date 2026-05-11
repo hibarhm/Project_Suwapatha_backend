@@ -42,9 +42,16 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        AuthResponse response = authService.login(request);
+    @PostMapping("/login/admin")
+    public ResponseEntity<AuthResponse> loginAdmin(@Valid @RequestBody LoginRequest request) {
+        AuthResponse response = authService.loginAdmin(request);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/login/super-admin")
+    public ResponseEntity<AuthResponse> loginSuperAdmin(@Valid @RequestBody LoginRequest request) {
+        AuthResponse response = authService.loginSuperAdmin(request);
+        return ResponseEntity.ok(response);
+    }
+
 }
