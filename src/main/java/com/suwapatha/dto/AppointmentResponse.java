@@ -24,4 +24,5 @@ public class AppointmentResponse {
     private String sessionStartTime; // HH:mm
     private int slotDuration; // minutes per slot
     private String createdAt;
+    private boolean isNext;
 }

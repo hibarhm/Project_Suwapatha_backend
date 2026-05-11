@@ -97,14 +97,14 @@ public class AdminOpdService {
 
                 log.debug("Getting today's stats for hospital: {}", hospital.getName());
 
-                // Get today's sessions
+                // Get today's sessions (excluding CANCELLED)
                 List<OpdSession> todaySessions = sessionRepository
-                                .findByHospitalIdAndDateGreaterThanEqualAndStatusOrderByDateAscStartTimeAsc(
+                                .findByHospitalIdAndDateGreaterThanEqualOrderByDateAscStartTimeAsc(
                                                 hospital.getId(),
-                                                today,
-                                                "OPEN")
+                                                today)
                                 .stream()
                                 .filter(s -> s.getDate().equals(today))
+                                .filter(s -> !"CANCELLED".equals(s.getStatus()))
                                 .collect(Collectors.toList());
 
                 // Calculate statistics
@@ -149,12 +149,12 @@ public class AdminOpdService {
                 log.debug("Getting today's sessions for hospital: {}", hospital.getName());
 
                 List<OpdSession> sessions = sessionRepository
-                                .findByHospitalIdAndDateGreaterThanEqualAndStatusOrderByDateAscStartTimeAsc(
+                                .findByHospitalIdAndDateGreaterThanEqualOrderByDateAscStartTimeAsc(
                                                 hospital.getId(),
-                                                today,
-                                                "OPEN")
+                                                today)
                                 .stream()
                                 .filter(s -> s.getDate().equals(today))
+                                .filter(s -> !"CANCELLED".equals(s.getStatus()))
                                 .collect(Collectors.toList());
 
                 return sessions.stream()

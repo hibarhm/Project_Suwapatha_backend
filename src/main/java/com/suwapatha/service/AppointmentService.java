@@ -88,6 +88,32 @@ public class AppointmentService {
         r.setSessionStartTime(a.getSessionStartTime());
         r.setSlotDuration(a.getSlotDuration());
         r.setCreatedAt(a.getCreatedAt() != null ? a.getCreatedAt().toString() : "");
+
+        // Determine if this patient is "Next"
+        if ("BOOKED".equals(a.getStatus()) || "CHECKED_IN".equals(a.getStatus())) {
+            List<Appointment> sessionAppts = appointmentRepository.findBySessionIdOrderByQueueNumberAsc(a.getSessionId());
+            int consultingQueue = -1;
+            for (Appointment sa : sessionAppts) {
+                if ("CONSULTING".equals(sa.getStatus())) {
+                    consultingQueue = sa.getQueueNumber();
+                    break;
+                }
+            }
+
+            if (consultingQueue != -1) {
+                // Find the first non-cancelled appointment after the consulting one
+                for (Appointment sa : sessionAppts) {
+                    if (sa.getQueueNumber() > consultingQueue &&
+                            ("BOOKED".equals(sa.getStatus()) || "CHECKED_IN".equals(sa.getStatus()))) {
+                        if (sa.getId().equals(a.getId())) {
+                            r.setNext(true);
+                        }
+                        break; // Only the first one is "Next"
+                    }
+                }
+            }
+        }
+
         return r;
     }
 }

@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,10 +23,19 @@ public class OpdSessionService {
     /** Patient: get upcoming OPEN sessions for a hospital */
     public List<OpdSessionResponse> getUpcomingSessionsForHospital(String hospitalId) {
         String today = LocalDate.now().toString();
+        LocalTime nowTime = LocalTime.now();
+
         return opdSessionRepository
                 .findByHospitalIdAndDateGreaterThanEqualAndStatusOrderByDateAscStartTimeAsc(
                         hospitalId, today, "OPEN")
                 .stream()
+                .filter(s -> {
+                    // Hide session from patients if it's today and after 12:00 PM
+                    if (s.getDate().equals(today) && nowTime.isAfter(LocalTime.NOON)) {
+                        return false;
+                    }
+                    return true;
+                })
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
@@ -40,6 +50,11 @@ public class OpdSessionService {
 
         if (!"OPEN".equals(session.getStatus())) {
             throw new RuntimeException("This session is no longer open for bookings.");
+        }
+
+        // Disable booking at 12:00 AM of the session day
+        if (session.getDate().equals(LocalDate.now().toString())) {
+            throw new RuntimeException("Bookings for this session are closed (Sessions are closed at 12:00 AM on the day of the session).");
         }
         if (session.getCurrentQueueCount() >= session.getMaxQueueSize()) {
             throw new RuntimeException("This session is fully booked.");

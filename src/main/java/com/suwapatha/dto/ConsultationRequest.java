@@ -23,4 +23,6 @@ public class ConsultationRequest {
 
     private List<Prescription> prescriptions;
     private boolean followUpRequired;
+    private String hospitalName;
+    private String appointmentId;
 }

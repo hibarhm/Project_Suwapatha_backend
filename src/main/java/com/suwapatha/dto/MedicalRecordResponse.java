@@ -19,8 +19,13 @@ public class MedicalRecordResponse {
     private String time;
     private String hospital;
     private String doctor;
+    private String diagnosis;
     private boolean followUpRequired;
     private String consultationNotes;
+    private String bp;
+    private String temp;
+    private String pulse;
+    private String weight;
     private List<Prescription> prescriptions;
     private int labReports;  // Count of lab reports
     private List<String> labReportUrls;

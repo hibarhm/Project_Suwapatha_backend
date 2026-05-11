@@ -16,6 +16,7 @@ import java.util.List;
 public class MedicalRecordController {
 
     private final MedicalRecordService medicalRecordService;
+    private final com.suwapatha.repository.UserRepository userRepository;
 
     @GetMapping
     @PreAuthorize("hasRole('PATIENT')")
@@ -23,10 +24,11 @@ public class MedicalRecordController {
             Authentication authentication
     ) {
         String patientEmail = authentication.getName();
-        // You'll need to get patient ID from the User entity
-        // For now, using email as identifier
+        com.suwapatha.entity.User user = userRepository.findByEmail(patientEmail)
+                .orElseThrow(() -> new RuntimeException("Patient not found"));
+
         List<MedicalRecordResponse> records = medicalRecordService
-                .getPatientMedicalRecords(patientEmail);
+                .getPatientMedicalRecords(user.getId());
         return ResponseEntity.ok(records);
     }
 
@@ -39,8 +41,11 @@ public class MedicalRecordController {
             @RequestParam(required = false) String hospital
     ) {
         String patientEmail = authentication.getName();
+        com.suwapatha.entity.User user = userRepository.findByEmail(patientEmail)
+                .orElseThrow(() -> new RuntimeException("Patient not found"));
+
         List<MedicalRecordResponse> records = medicalRecordService
-                .getFilteredMedicalRecords(patientEmail, startDate, endDate, hospital);
+                .getFilteredMedicalRecords(user.getId(), startDate, endDate, hospital);
         return ResponseEntity.ok(records);
     }
 }

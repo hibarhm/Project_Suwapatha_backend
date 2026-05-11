@@ -12,5 +12,10 @@ public interface OpdSessionRepository extends MongoRepository<OpdSession, String
     List<OpdSession> findByHospitalIdAndDateGreaterThanEqualAndStatusOrderByDateAscStartTimeAsc(
             String hospitalId, String date, String status);
 
+    List<OpdSession> findByHospitalIdAndDateGreaterThanEqualOrderByDateAscStartTimeAsc(
+            String hospitalId, String date);
+
     List<OpdSession> findByHospitalIdOrderByDateDescStartTimeDesc(String hospitalId);
+
+    List<OpdSession> findByStatusIn(List<String> statuses);
 }

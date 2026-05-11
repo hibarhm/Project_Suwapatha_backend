@@ -28,6 +28,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -97,8 +98,8 @@ public class DoctorDashboardService {
                 .collect(Collectors.toList());
     }
 
-    public PatientDetailsResponse getPatientDetails(String patientId) {
-        log.info("Fetching details for patient: {}", patientId);
+    public PatientDetailsResponse getPatientDetails(String patientId, String doctorEmail) {
+        log.info("Fetching details for patient: {} by doctor: {}", patientId, doctorEmail);
 
         User patient = userRepository.findById(patientId)
                 .orElseThrow(() -> new RuntimeException("Patient not found"));
@@ -110,6 +111,15 @@ public class DoctorDashboardService {
                 : history.get(0).getPrescriptions().stream()
                         .filter(p -> "Active".equals(p.getStatus()))
                         .collect(Collectors.toList());
+
+        User doctor = userRepository.findByEmail(doctorEmail)
+                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+        String doctorName = doctor.getFirstName() + " " + doctor.getLastName();
+
+        // Find current active appointment for this doctor and patient
+        Optional<Appointment> currentAppt = appointmentRepository
+                .findFirstByPatientIdAndDoctorNameAndStatusInOrderByAppointmentDateDesc(
+                        patientId, doctorName, Arrays.asList("BOOKED", "CHECKED_IN", "CONSULTING"));
 
         return PatientDetailsResponse.builder()
                 .id(patient.getId())
@@ -125,7 +135,28 @@ public class DoctorDashboardService {
                 .chronicConditions(new ArrayList<>()) // To be implemented
                 .medicalHistory(history)
                 .activePrescriptions(activePrescriptions)
+                .currentAppointmentId(currentAppt.map(Appointment::getId).orElse(null))
+                .currentStatus(currentAppt.map(Appointment::getStatus).orElse(null))
+                .hospitalName(currentAppt.map(Appointment::getHospitalName).orElse(null))
                 .build();
+    }
+
+    public void updateAppointmentStatus(String appointmentId, String status, String doctorEmail) {
+        log.info("Updating appointment: {} to status: {} by doctor: {}", appointmentId, status, doctorEmail);
+
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+
+        User doctor = userRepository.findByEmail(doctorEmail)
+                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+        String doctorName = doctor.getFirstName() + " " + doctor.getLastName();
+
+        if (!appointment.getDoctorName().equals(doctorName)) {
+            throw new RuntimeException("Unauthorized: You are not the assigned doctor for this appointment");
+        }
+
+        appointment.setStatus(status);
+        appointmentRepository.save(appointment);
     }
 
     public void saveConsultation(ConsultationRequest request, String doctorEmail) {
@@ -153,9 +184,20 @@ public class DoctorDashboardService {
         record.setWeight(request.getWeight());
 
         record.setPrescriptions(request.getPrescriptions());
+        record.setHospital(request.getHospitalName());
+        record.setVisitTime(LocalDateTime.now().format(DateTimeFormatter.ofPattern("hh:mm a")));
         record.setCreatedAt(LocalDateTime.now());
 
         medicalRecordRepository.save(record);
+
+        // Update appointment status to COMPLETED if appointmentId is provided
+        if (request.getAppointmentId() != null && !request.getAppointmentId().isEmpty()) {
+            appointmentRepository.findById(request.getAppointmentId()).ifPresent(a -> {
+                a.setStatus("COMPLETED");
+                appointmentRepository.save(a);
+                log.info("Appointment {} marked as COMPLETED after consultation save", request.getAppointmentId());
+            });
+        }
 
         // If follow up required, maybe create a notification or similar logic
     }

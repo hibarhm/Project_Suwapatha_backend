@@ -28,4 +28,8 @@ public class PatientDetailsResponse {
 
     private List<MedicalRecord> medicalHistory;
     private List<Prescription> activePrescriptions;
+
+    private String currentAppointmentId;
+    private String currentStatus;
+    private String hospitalName;
 }

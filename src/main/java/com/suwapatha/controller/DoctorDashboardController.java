@@ -51,8 +51,28 @@ public class DoctorDashboardController {
     @GetMapping("/patients/{id}")
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<PatientDetailsResponse> getPatientDetails(
-            @org.springframework.web.bind.annotation.PathVariable String id) {
-        return ResponseEntity.ok(doctorDashboardService.getPatientDetails(id));
+            @org.springframework.web.bind.annotation.PathVariable String id,
+            Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(401).build();
+        }
+        String doctorEmail = authentication.getName();
+        return ResponseEntity.ok(doctorDashboardService.getPatientDetails(id, doctorEmail));
+    }
+
+    @PutMapping("/appointments/{id}/status")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('DOCTOR')")
+    public ResponseEntity<String> updateAppointmentStatus(
+            @org.springframework.web.bind.annotation.PathVariable String id,
+            @org.springframework.web.bind.annotation.RequestBody Map<String, String> body,
+            Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(401).build();
+        }
+        String doctorEmail = authentication.getName();
+        String status = body.get("status");
+        doctorDashboardService.updateAppointmentStatus(id, status, doctorEmail);
+        return ResponseEntity.ok("Appointment status updated successfully");
     }
 
     @org.springframework.web.bind.annotation.PostMapping("/consultation")
