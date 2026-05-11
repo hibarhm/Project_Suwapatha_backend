@@ -41,4 +41,7 @@ public class UserResponse {
     private LocalDateTime createdAt;
 
     private String status;
+    private int lateCancellationCount;
+    private boolean hasRedMark;
+    private boolean enabled;
 }

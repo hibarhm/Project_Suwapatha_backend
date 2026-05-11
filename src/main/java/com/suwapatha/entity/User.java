@@ -55,4 +55,7 @@ public class User {
     private boolean enabled = true;
 
     private String status; // PENDING, APPROVED, REJECTED
+
+    private int lateCancellationCount = 0;
+    private boolean hasRedMark = false;
 }

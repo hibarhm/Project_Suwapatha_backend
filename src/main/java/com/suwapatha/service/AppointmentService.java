@@ -8,6 +8,9 @@ import com.suwapatha.repository.AppointmentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -17,6 +20,7 @@ public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
     private final OpdSessionService opdSessionService;
+    private final UserService userService;
 
     /**
      * Books the patient into a specific OPD session.
@@ -71,6 +75,21 @@ public class AppointmentService {
         if (!appointment.getPatientId().equals(patientId)) {
             throw new RuntimeException("Not authorized to cancel this appointment");
         }
+
+        // Penalty logic: check if cancellation is within 12 hours of session start
+        try {
+            LocalDate date = LocalDate.parse(appointment.getAppointmentDate());
+            LocalTime time = LocalTime.parse(appointment.getSessionStartTime());
+            LocalDateTime sessionTime = LocalDateTime.of(date, time);
+
+            if (LocalDateTime.now().isAfter(sessionTime.minusHours(12))) {
+                userService.incrementPenalty(patientId);
+            }
+        } catch (Exception e) {
+            // Log error but proceed with cancellation if time parsing fails
+            System.err.println("Error checking cancellation penalty: " + e.getMessage());
+        }
+
         appointment.setStatus("CANCELLED");
         appointmentRepository.save(appointment);
     }

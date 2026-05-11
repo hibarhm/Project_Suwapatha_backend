@@ -110,6 +110,29 @@ public class UserService {
         return mapToUserResponse(savedUser);
     }
 
+    public void incrementPenalty(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+        user.setLateCancellationCount(user.getLateCancellationCount() + 1);
+        
+        if (user.getLateCancellationCount() >= 3) {
+            user.setHasRedMark(true);
+            user.setEnabled(false);
+            
+            // Notify user about account disabling
+            String subject = "Account Disabled - Cancellation Penalty";
+            String body = "Dear " + user.getFirstName() + ",\n\n" +
+                    "Your account has been disabled due to reaching the maximum limit of late cancellations (3).\n" +
+                    "A red mark has been added to your profile.\n" +
+                    "Please contact the administration for further assistance.\n\n" +
+                    "Regards,\nThe Suwapatha Team";
+            emailService.sendEmail(user.getEmail(), subject, body);
+        }
+
+        userRepository.save(user);
+    }
+
     private UserResponse mapToUserResponse(User user) {
         return UserResponse.builder()
                 .id(user.getId())
@@ -131,6 +154,9 @@ public class UserService {
                         .orElse(null) : null)
                 .createdAt(user.getCreatedAt())
                 .status(user.getStatus())
+                .lateCancellationCount(user.getLateCancellationCount())
+                .hasRedMark(user.isHasRedMark())
+                .enabled(user.isEnabled())
                 .build();
     }
 }
