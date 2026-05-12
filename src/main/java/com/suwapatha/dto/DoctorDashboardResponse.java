@@ -40,8 +40,10 @@ public class DoctorDashboardResponse {
         private String id;
         private String type; // message, cancelled, lab, reminder
         private String title;
+        private String message;
         private String time;
         private String icon; // mail, calendar, flask
+        private boolean isRead;
     }
 
     @Data

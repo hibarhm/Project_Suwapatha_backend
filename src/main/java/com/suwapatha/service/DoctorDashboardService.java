@@ -299,8 +299,10 @@ public class DoctorDashboardService {
                         .id(n.getId())
                         .type(n.getType())
                         .title(n.getTitle())
+                        .message(n.getMessage())
                         .time(formatTime(n.getCreatedAt()))
                         .icon(n.getIcon())
+                        .isRead(n.isRead())
                         .build())
                 .collect(Collectors.toList());
     }
