@@ -328,7 +328,11 @@ public class DoctorDashboardService {
             LocalDate month = now.minusMonths(i);
             String start = month.withDayOfMonth(1).toString();
             String end = month.withDayOfMonth(month.lengthOfMonth()).toString();
-            int count = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetween(doctorName, start, end);
+            
+            // Only count completed appointments for "Visits"
+            int count = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetweenAndStatus(
+                    doctorName, start, end, "COMPLETED");
+            
             data.add(new DoctorDashboardResponse.VisitData(month.getMonth().name().substring(0, 3), count));
         }
         return data;
@@ -340,7 +344,11 @@ public class DoctorDashboardService {
         LocalDate startOfWeek = now.minusDays(now.getDayOfWeek().getValue() - 1);
         for (int i = 0; i < 7; i++) {
             LocalDate day = startOfWeek.plusDays(i);
-            int count = appointmentRepository.countByDoctorNameAndAppointmentDate(doctorName, day.toString());
+            
+            // Only count completed appointments for "Consultations"
+            int count = (int) appointmentRepository.countByDoctorNameAndAppointmentDateAndStatus(
+                    doctorName, day.toString(), "COMPLETED");
+            
             data.add(new DoctorDashboardResponse.DayConsultation(day.getDayOfWeek().name().substring(0, 3), count));
         }
         return data;
