@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -92,8 +93,10 @@ public class DoctorDashboardService {
                 .orElseThrow(() -> new RuntimeException("Doctor not found"));
 
         String doctorName = doctor.getFirstName() + " " + doctor.getLastName();
+        String today = LocalDate.now().toString();
 
-        return appointmentRepository.findByDoctorName(doctorName).stream()
+        // Fetch only today's appointments (all statuses)
+        return appointmentRepository.findByDoctorNameAndAppointmentDate(doctorName, today).stream()
                 .map(this::toDoctorPatientResponse)
                 .collect(Collectors.toList());
     }
@@ -220,8 +223,8 @@ public class DoctorDashboardService {
         r.setStatus(a.getStatus());
         r.setPatientId(a.getPatientId());
 
-        // Mock time if not available in appointment
-        r.setTime("09:00 AM");
+        // Calculate time based on session start and queue number
+        r.setTime(calculateAppointmentTime(a));
 
         userRepository.findByEmail(a.getPatientEmail()).ifPresent(u -> {
             r.setName(u.getFirstName() + " " + u.getLastName());
@@ -231,33 +234,65 @@ public class DoctorDashboardService {
         return r;
     }
 
-    private DoctorDashboardResponse.Stats calculateStats(String doctorName, String today) {
-        int totalPatientsToday = appointmentRepository.countByDoctorNameAndAppointmentDate(doctorName, today);
+    private String calculateAppointmentTime(Appointment a) {
+        if (a.getSessionStartTime() != null && !a.getSessionStartTime().isEmpty()) {
+            try {
+                LocalTime startTime = LocalTime.parse(a.getSessionStartTime());
+                int offsetMinutes = (a.getQueueNumber() - 1) * a.getSlotDuration();
+                return startTime.plusMinutes(offsetMinutes).format(DateTimeFormatter.ofPattern("hh:mm a"));
+            } catch (Exception e) {
+                log.warn("Error parsing session start time: {} for appointment {}", a.getSessionStartTime(), a.getId());
+            }
+        }
+        return "N/A";
+    }
 
-        LocalDate startOfWeek = LocalDate.now().minusDays(LocalDate.now().getDayOfWeek().getValue() - 1);
+    private DoctorDashboardResponse.Stats calculateStats(String doctorName, String today) {
+        LocalDate now = LocalDate.now();
+        String yesterday = now.minusDays(1).toString();
+
+        int totalPatientsToday = appointmentRepository.countByDoctorNameAndAppointmentDate(doctorName, today);
+        int totalPatientsYesterday = appointmentRepository.countByDoctorNameAndAppointmentDate(doctorName, yesterday);
+
+        // Consultations this week
+        LocalDate startOfWeek = now.minusDays(now.getDayOfWeek().getValue() - 1);
         int consultationsThisWeek = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetween(
                 doctorName, startOfWeek.toString(), today);
 
-        // Mocking some values to match the dashboard's needs (change percentages etc.)
+        // Last week
+        LocalDate startOfLastWeek = startOfWeek.minusWeeks(1);
+        LocalDate endOfLastWeek = startOfWeek.minusDays(1);
+        int consultationsLastWeek = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetween(
+                doctorName, startOfLastWeek.toString(), endOfLastWeek.toString());
+
+        // Last month
+        LocalDate startOfMonth = now.withDayOfMonth(1);
+        LocalDate startOfLastMonth = startOfMonth.minusMonths(1);
+        LocalDate endOfLastMonth = startOfMonth.minusDays(1);
+        int consultationsThisMonth = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetween(
+                doctorName, startOfMonth.toString(), today);
+        int consultationsLastMonth = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetween(
+                doctorName, startOfLastMonth.toString(), endOfLastMonth.toString());
+
         return DoctorDashboardResponse.Stats.builder()
                 .totalPatientsToday(totalPatientsToday)
                 .consultationsThisWeek(consultationsThisWeek)
-                .averageWaitTime(15) // Mocked or calculated if we have data
-                .changeFromYesterday(5)
-                .changeFromLastWeek(12)
-                .changeFromLastMonth(-2)
+                .averageWaitTime(15) // Still mocked as we don't have check-in/out duration data points yet
+                .changeFromYesterday(calculatePercentChange(totalPatientsToday, totalPatientsYesterday))
+                .changeFromLastWeek(calculatePercentChange(consultationsThisWeek, consultationsLastWeek))
+                .changeFromLastMonth(calculatePercentChange(consultationsThisMonth, consultationsLastMonth))
                 .build();
     }
 
+    private int calculatePercentChange(int current, int previous) {
+        if (previous == 0) return current > 0 ? 100 : 0;
+        return (int) (((double) (current - previous) / previous) * 100);
+    }
+
     private List<DoctorDashboardResponse.Notification> getRealNotifications(String doctorEmail) {
+        // Fetch notifications from repository
         List<com.suwapatha.entity.Notification> notes = notificationRepository
                 .findByRecipientIdOrderByCreatedAtDesc(doctorEmail);
-
-        // Seed if empty for testing purposes
-        if (notes.isEmpty()) {
-            seedInitialNotifications(doctorEmail);
-            notes = notificationRepository.findByRecipientIdOrderByCreatedAtDesc(doctorEmail);
-        }
 
         return notes.stream()
                 .map(n -> DoctorDashboardResponse.Notification.builder()
@@ -270,34 +305,6 @@ public class DoctorDashboardService {
                 .collect(Collectors.toList());
     }
 
-    private void seedInitialNotifications(String doctorEmail) {
-        notificationRepository.save(com.suwapatha.entity.Notification.builder()
-                .recipientId(doctorEmail)
-                .title("New message from Patient regarding lab results.")
-                .type("message")
-                .icon("mail")
-                .isRead(false)
-                .createdAt(LocalDateTime.now().minusMinutes(5))
-                .build());
-
-        notificationRepository.save(com.suwapatha.entity.Notification.builder()
-                .recipientId(doctorEmail)
-                .title("Appointment with John Smith cancelled at 10:30 AM.")
-                .type("cancelled")
-                .icon("calendar")
-                .isRead(false)
-                .createdAt(LocalDateTime.now().minusHours(2))
-                .build());
-
-        notificationRepository.save(com.suwapatha.entity.Notification.builder()
-                .recipientId(doctorEmail)
-                .title("Lab report for Emily White is ready for review.")
-                .type("lab")
-                .icon("flask")
-                .isRead(false)
-                .createdAt(LocalDateTime.now().minusHours(3))
-                .build());
-    }
 
     private String formatTime(LocalDateTime dt) {
         if (dt == null)
@@ -313,24 +320,26 @@ public class DoctorDashboardService {
     }
 
     private List<DoctorDashboardResponse.VisitData> getVisitData(String doctorName) {
-        // Mocking for now, could be aggregated from AppointmentRepository
-        String[] months = { "Jan", "Feb", "Mar", "Apr", "May", "Jun" };
-        int[] visits = { 190, 230, 210, 280, 250, 310 };
-
         List<DoctorDashboardResponse.VisitData> data = new ArrayList<>();
-        for (int i = 0; i < months.length; i++) {
-            data.add(new DoctorDashboardResponse.VisitData(months[i], visits[i]));
+        LocalDate now = LocalDate.now();
+        for (int i = 5; i >= 0; i--) {
+            LocalDate month = now.minusMonths(i);
+            String start = month.withDayOfMonth(1).toString();
+            String end = month.withDayOfMonth(month.lengthOfMonth()).toString();
+            int count = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetween(doctorName, start, end);
+            data.add(new DoctorDashboardResponse.VisitData(month.getMonth().name().substring(0, 3), count));
         }
         return data;
     }
 
     private List<DoctorDashboardResponse.DayConsultation> getConsultationsByDay(String doctorName) {
-        String[] days = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
-        int[] counts = { 18, 24, 21, 32, 23, 15, 10 };
-
         List<DoctorDashboardResponse.DayConsultation> data = new ArrayList<>();
-        for (int i = 0; i < days.length; i++) {
-            data.add(new DoctorDashboardResponse.DayConsultation(days[i], counts[i]));
+        LocalDate now = LocalDate.now();
+        LocalDate startOfWeek = now.minusDays(now.getDayOfWeek().getValue() - 1);
+        for (int i = 0; i < 7; i++) {
+            LocalDate day = startOfWeek.plusDays(i);
+            int count = appointmentRepository.countByDoctorNameAndAppointmentDate(doctorName, day.toString());
+            data.add(new DoctorDashboardResponse.DayConsultation(day.getDayOfWeek().name().substring(0, 3), count));
         }
         return data;
     }
@@ -352,7 +361,7 @@ public class DoctorDashboardService {
         r.setRoom(a.getRoom());
         r.setStatus(a.getStatus());
         r.setEstimatedWaitMinutes(a.getEstimatedWaitMinutes());
-        r.setTime("10:30 AM"); // Should be derived from session if available
+        r.setTime(calculateAppointmentTime(a));
         r.setAvatar(""); // Optional avatar URL
         r.setCreatedAt(a.getCreatedAt() != null ? a.getCreatedAt().toString() : "");
         return r;

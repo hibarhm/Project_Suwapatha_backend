@@ -25,6 +25,8 @@ public interface AppointmentRepository extends MongoRepository<Appointment, Stri
 
     long countByDoctorNameAndAppointmentDateBetween(String doctorName, String startDate, String endDate);
 
+    List<Appointment> findByDoctorNameAndAppointmentDate(String doctorName, String appointmentDate);
+
     List<Appointment> findByDoctorName(String doctorName);
 
     List<Appointment> findBySessionIdOrderByQueueNumberAsc(String sessionId);
