@@ -13,6 +13,8 @@ public interface AppointmentRepository extends MongoRepository<Appointment, Stri
     List<Appointment> findByPatientIdOrderByCreatedAtDesc(String patientId);
 
     Optional<Appointment> findFirstByPatientIdAndStatusOrderByCreatedAtDesc(String patientId, String status);
+    
+    List<Appointment> findByPatientIdAndStatusInOrderByAppointmentDateAsc(String patientId, List<String> statuses);
 
     int countByHospitalNameAndAppointmentDate(String hospitalName, String appointmentDate);
 

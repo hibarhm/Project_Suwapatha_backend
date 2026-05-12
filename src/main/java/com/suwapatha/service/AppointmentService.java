@@ -60,12 +60,41 @@ public class AppointmentService {
                 .stream().map(this::toResponse).collect(Collectors.toList());
     }
 
-    /** Latest BOOKED appointment (for the queue status card) */
+    /** Latest relevant appointment (for the queue status card) */
     public AppointmentResponse getActiveAppointment(String patientId) {
-        return appointmentRepository
-                .findFirstByPatientIdAndStatusOrderByCreatedAtDesc(patientId, "BOOKED")
-                .map(this::toResponse)
-                .orElse(null);
+        List<String> activeStatuses = List.of("BOOKED", "CHECKED_IN", "CONSULTING");
+        List<Appointment> candidates = appointmentRepository
+                .findByPatientIdAndStatusInOrderByAppointmentDateAsc(patientId, activeStatuses);
+
+        LocalDate today = LocalDate.now();
+        LocalTime noon = LocalTime.of(12, 0);
+        LocalTime now = LocalTime.now();
+
+        for (Appointment a : candidates) {
+            try {
+                LocalDate apptDate = LocalDate.parse(a.getAppointmentDate());
+                
+                // If the appointment is in the future, it's active
+                if (apptDate.isAfter(today)) {
+                    return toResponse(a);
+                }
+                
+                // If it's today, check the 12 PM refresh rule
+                if (apptDate.isEqual(today)) {
+                    if (now.isBefore(noon)) {
+                        return toResponse(a);
+                    }
+                    // If after 12 PM, we consider this session "finished" or "expired" for the card
+                    continue;
+                }
+                
+                // Past dates are ignored
+            } catch (Exception e) {
+                // If date parsing fails, skip it
+            }
+        }
+        
+        return null;
     }
 
     /** Cancel — only the owner can cancel */
@@ -102,7 +131,23 @@ public class AppointmentService {
         r.setQueueNumber(a.getQueueNumber());
         r.setDoctorName(a.getDoctorName());
         r.setRoom(a.getRoom());
-        r.setStatus(a.getStatus());
+
+        // Determine effective status based on time reset rules
+        String status = a.getStatus();
+        if ("BOOKED".equals(status) || "CHECKED_IN".equals(status)) {
+            try {
+                LocalDate apptDate = LocalDate.parse(a.getAppointmentDate());
+                LocalDate today = LocalDate.now();
+                LocalTime noon = LocalTime.of(12, 0);
+
+                if (apptDate.isBefore(today) || (apptDate.isEqual(today) && LocalTime.now().isAfter(noon))) {
+                    status = "FINISHED";
+                }
+            } catch (Exception e) {
+                // date parse error, keep original status
+            }
+        }
+        r.setStatus(status);
         r.setEstimatedWaitMinutes(a.getEstimatedWaitMinutes());
         r.setSessionStartTime(a.getSessionStartTime());
         r.setSlotDuration(a.getSlotDuration());
