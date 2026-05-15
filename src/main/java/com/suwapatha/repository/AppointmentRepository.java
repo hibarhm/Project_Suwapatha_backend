@@ -42,4 +42,6 @@ public interface AppointmentRepository extends MongoRepository<Appointment, Stri
      * start time stored
      */
     List<Appointment> findByStatusAndSmsSentFalseAndSessionStartTimeNotNull(String status);
+
+    int countByHospitalNameAndAppointmentDateBetweenAndStatus(String hospitalName, String startDate, String endDate, String status);
 }

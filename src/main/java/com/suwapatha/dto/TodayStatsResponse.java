@@ -16,4 +16,8 @@ public class TodayStatsResponse {
     private int activeDoctors;
     private int totalDoctors;
     private int activeSessions;
+    private int totalSessions;
+    private int monthlyActiveSessions;
+    private int monthlyTotalSessions;
+    private int monthlyCompletedPatients;
 }

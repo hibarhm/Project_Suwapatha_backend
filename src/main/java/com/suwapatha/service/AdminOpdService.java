@@ -118,24 +118,54 @@ public class AdminOpdService {
 
                 int unallocatedPatients = Math.max(0, totalSlots - allocatedPatients);
 
-                int totalDoctors = todaySessions.size();
+                // Calculate doctor statistics
+                List<User> hospitalDoctors = userRepository.findByRoleAndHospitalId(UserRole.DOCTOR, hospital.getId());
+                int totalRegisteredDoctors = hospitalDoctors.size();
+                List<String> hospitalDoctorEmails = hospitalDoctors.stream()
+                                .map(User::getEmail)
+                                .collect(Collectors.toList());
 
-                int activeDoctors = (int) todaySessions.stream()
-                                .filter(s -> s.getDoctorName() != null && !s.getDoctorName().isEmpty())
-                                .filter(s -> s.getRoom() != null && !s.getRoom().isEmpty())
+                int activeDoctors = (int) availabilityRepository.findByDateAndAvailableTrue(today).stream()
+                                .filter(a -> hospitalDoctorEmails.contains(a.getEmail()))
                                 .count();
 
                 long activeSessions = todaySessions.stream()
                                 .filter(s -> "OPEN".equals(s.getStatus()))
                                 .count();
 
+                // Calculate monthly completed patients
+                LocalDate now = LocalDate.now();
+                String startOfMonth = now.withDayOfMonth(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                String endOfMonth = now.withDayOfMonth(now.lengthOfMonth()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+
+                int monthlyCompletedPatients = appointmentRepository.countByHospitalNameAndAppointmentDateBetweenAndStatus(
+                                hospital.getName(),
+                                startOfMonth,
+                                endOfMonth,
+                                "COMPLETED");
+
+                int monthlyActiveSessions = (int) sessionRepository.countByHospitalIdAndDateBetweenAndStatus(
+                                hospital.getId(),
+                                startOfMonth,
+                                endOfMonth,
+                                "OPEN");
+
+                int monthlyTotalSessions = (int) sessionRepository.countByHospitalIdAndDateBetween(
+                                hospital.getId(),
+                                startOfMonth,
+                                endOfMonth);
+
                 return TodayStatsResponse.builder()
                                 .totalPatients(totalSlots)
                                 .allocatedPatients(allocatedPatients)
                                 .unallocatedPatients(unallocatedPatients)
                                 .activeDoctors(activeDoctors)
-                                .totalDoctors(totalDoctors)
+                                .totalDoctors(totalRegisteredDoctors)
                                 .activeSessions((int) activeSessions)
+                                .totalSessions(todaySessions.size())
+                                .monthlyActiveSessions(monthlyActiveSessions)
+                                .monthlyTotalSessions(monthlyTotalSessions)
+                                .monthlyCompletedPatients(monthlyCompletedPatients)
                                 .build();
         }
 

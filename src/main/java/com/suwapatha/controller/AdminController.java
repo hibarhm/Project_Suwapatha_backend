@@ -62,11 +62,14 @@ public class AdminController {
                 .orElseThrow(
                         () -> new IllegalArgumentException("Doctor not found or does not belong to your hospital"));
 
-        return ResponseEntity.ok(userService.updateUserStatus(id, "APPROVED"));
+        return ResponseEntity.ok(userService.updateUserStatus(id, "APPROVED", null));
     }
 
     @PutMapping("/doctors/{id}/reject")
-    public ResponseEntity<UserResponse> rejectDoctor(Authentication authentication, @PathVariable String id) {
+    public ResponseEntity<UserResponse> rejectDoctor(
+            Authentication authentication,
+            @PathVariable String id,
+            @RequestBody(required = false) Map<String, String> body) {
         String adminEmail = authentication.getName();
         String hospitalId = adminOpdService.getAdminHospital(adminEmail).getId();
 
@@ -77,7 +80,8 @@ public class AdminController {
                 .orElseThrow(
                         () -> new IllegalArgumentException("Doctor not found or does not belong to your hospital"));
 
-        return ResponseEntity.ok(userService.updateUserStatus(id, "REJECTED"));
+        String reason = (body != null) ? body.get("reason") : null;
+        return ResponseEntity.ok(userService.updateUserStatus(id, "REJECTED", reason));
     }
 
     // OPD Session Management - Stats & Overview

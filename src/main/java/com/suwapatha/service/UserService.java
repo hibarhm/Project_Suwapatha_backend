@@ -80,7 +80,7 @@ public class UserService {
                 .collect(java.util.stream.Collectors.toList());
     }
 
-    public UserResponse updateUserStatus(String id, String status) {
+    public UserResponse updateUserStatus(String id, String status, String reason) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
@@ -98,8 +98,13 @@ public class UserService {
                     "Welcome aboard,\nThe Suwapatha Team";
         } else if ("REJECTED".equalsIgnoreCase(status)) {
             body = "Dear Dr. " + user.getLastName() + ",\n\n" +
-                    "Your registration with Suwapatha has been REJECTED.\n" +
-                    "Please contact support for further information.\n\n" +
+                    "Your registration with Suwapatha has been REJECTED.\n";
+            
+            if (reason != null && !reason.trim().isEmpty()) {
+                body += "\nReason for rejection: " + reason + "\n";
+            }
+            
+            body += "\nPlease contact support for further information.\n\n" +
                     "Regards,\nThe Suwapatha Team";
         }
 
