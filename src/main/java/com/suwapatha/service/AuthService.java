@@ -228,4 +228,32 @@ public class AuthService {
                 .build();
     }
 
+    public AuthResponse loginLaboratory(LoginRequest request) {
+        // Find user by email
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
+
+        // Verify it's a laboratory staff
+        if (user.getRole() != UserRole.LABORATORY) {
+            throw new InvalidCredentialsException("Unauthorized: Access restricted to laboratory staff.");
+        }
+
+        // Verify password
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new InvalidCredentialsException("Invalid email or password");
+        }
+
+        // Generate JWT token
+        String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
+
+        return AuthResponse.builder()
+                .token(token)
+                .id(user.getId())
+                .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .role(user.getRole())
+                .expiresIn(jwtUtil.getExpirationTime())
+                .build();
+    }
 }

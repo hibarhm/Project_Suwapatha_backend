@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 public class MedicalRecordService {
 
     private final MedicalRecordRepository medicalRecordRepository;
+    private final com.suwapatha.repository.LabRequestRepository labRequestRepository;
 
     public List<MedicalRecordResponse> getPatientMedicalRecords(String patientId) {
         List<MedicalRecord> records = medicalRecordRepository
@@ -55,6 +56,11 @@ public class MedicalRecordService {
     private MedicalRecordResponse convertToResponse(MedicalRecord record) {
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MMM dd, yyyy");
 
+        List<com.suwapatha.entity.LabRequest> requests = labRequestRepository.findByPatientId(record.getPatientId())
+                .stream()
+                .filter(req -> req.getCreatedAt().toLocalDate().equals(record.getVisitDate().toLocalDate()))
+                .collect(Collectors.toList());
+
         return MedicalRecordResponse.builder()
                 .id(record.getId())
                 .date(record.getVisitDate().format(dateFormatter))
@@ -71,6 +77,7 @@ public class MedicalRecordService {
                 .prescriptions(record.getPrescriptions())
                 .labReports(record.getLabReportUrls() != null ? record.getLabReportUrls().size() : 0)
                 .labReportUrls(record.getLabReportUrls())
+                .labRequests(requests)
                 .build();
     }
 }

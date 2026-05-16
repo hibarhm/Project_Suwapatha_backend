@@ -29,4 +29,5 @@ public class MedicalRecordResponse {
     private List<Prescription> prescriptions;
     private int labReports;  // Count of lab reports
     private List<String> labReportUrls;
+    private List<com.suwapatha.entity.LabRequest> labRequests;
 }

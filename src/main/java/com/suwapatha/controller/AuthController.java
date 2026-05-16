@@ -54,4 +54,10 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/login/laboratory")
+    public ResponseEntity<AuthResponse> loginLaboratory(@Valid @RequestBody LoginRequest request) {
+        AuthResponse response = authService.loginLaboratory(request);
+        return ResponseEntity.ok(response);
+    }
+
 }
