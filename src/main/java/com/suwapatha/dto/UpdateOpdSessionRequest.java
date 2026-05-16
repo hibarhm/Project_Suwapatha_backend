@@ -8,6 +8,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UpdateOpdSessionRequest {
+    private String doctorId;
+    private String doctorEmail;
     private String doctorName;
     private String room;
     private String startTime;

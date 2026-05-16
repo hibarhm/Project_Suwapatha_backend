@@ -28,6 +28,8 @@ public class Appointment {
     private int queueNumber;
 
     // Derived from the session
+    private String doctorId;
+    private String doctorEmail;
     private String doctorName;
     private String room;
 

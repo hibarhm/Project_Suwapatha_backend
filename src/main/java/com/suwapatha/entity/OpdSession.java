@@ -26,6 +26,8 @@ public class OpdSession {
     private String endTime; // HH:mm
 
     private String department;
+    private String doctorId;
+    private String doctorEmail;
     private String doctorName;
     private String room;
 

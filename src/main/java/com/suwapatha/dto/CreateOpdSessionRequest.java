@@ -23,6 +23,8 @@ public class CreateOpdSessionRequest {
     @NotBlank(message = "Department is required")
     private String department;
 
+    private String doctorId;
+    private String doctorEmail;
     private String doctorName;
     private String room;
 

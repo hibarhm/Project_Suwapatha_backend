@@ -59,7 +59,7 @@ public class DoctorDashboardService {
         String today = LocalDate.now().toString();
 
         // 1. Stats
-        DoctorDashboardResponse.Stats stats = calculateStats(doctorName, today);
+        DoctorDashboardResponse.Stats stats = calculateStats(doctorEmail, doctorName, today);
 
         // 2. Upcoming Appointments (Today's booked/checked-in)
         List<AppointmentResponse> upcoming = appointmentRepository
@@ -72,10 +72,10 @@ public class DoctorDashboardService {
         List<DoctorDashboardResponse.Notification> notifications = getRealNotifications(doctorEmail);
 
         // 4. Patient Visits Over Time (Last 6 months)
-        List<DoctorDashboardResponse.VisitData> visitData = getVisitData(doctorName);
+        List<DoctorDashboardResponse.VisitData> visitData = getVisitData(doctorEmail, doctorName);
 
         // 5. Consultations by Day (Current week)
-        List<DoctorDashboardResponse.DayConsultation> consultationsByDay = getConsultationsByDay(doctorName);
+        List<DoctorDashboardResponse.DayConsultation> consultationsByDay = getConsultationsByDay(doctorEmail, doctorName);
 
         return DoctorDashboardResponse.builder()
                 .stats(stats)
@@ -247,37 +247,66 @@ public class DoctorDashboardService {
         return "N/A";
     }
 
-    private DoctorDashboardResponse.Stats calculateStats(String doctorName, String today) {
+    private DoctorDashboardResponse.Stats calculateStats(String doctorEmail, String doctorName, String today) {
         LocalDate now = LocalDate.now();
         String yesterday = now.minusDays(1).toString();
 
-        int totalPatientsToday = appointmentRepository.countByDoctorNameAndAppointmentDate(doctorName, today);
-        int totalPatientsYesterday = appointmentRepository.countByDoctorNameAndAppointmentDate(doctorName, yesterday);
+        // Total Patients Today (All statuses except CANCELLED)
+        int totalPatientsToday = appointmentRepository.countByDoctorEmailAndAppointmentDateAndStatusIn(doctorEmail, today, Arrays.asList("BOOKED", "CHECKED_IN", "CONSULTING", "COMPLETED"));
+        if (totalPatientsToday == 0) {
+            totalPatientsToday = appointmentRepository.countByDoctorNameAndAppointmentDateAndStatusIn(doctorName, today, Arrays.asList("BOOKED", "CHECKED_IN", "CONSULTING", "COMPLETED"));
+        }
+        
+        int totalPatientsYesterday = appointmentRepository.countByDoctorEmailAndAppointmentDateAndStatusIn(doctorEmail, yesterday, Arrays.asList("BOOKED", "CHECKED_IN", "CONSULTING", "COMPLETED"));
+        if (totalPatientsYesterday == 0) {
+            totalPatientsYesterday = appointmentRepository.countByDoctorNameAndAppointmentDateAndStatusIn(doctorName, yesterday, Arrays.asList("BOOKED", "CHECKED_IN", "CONSULTING", "COMPLETED"));
+        }
 
-        // Consultations this week
+        // Consultations this week (COMPLETED or CONSULTING)
         LocalDate startOfWeek = now.minusDays(now.getDayOfWeek().getValue() - 1);
-        int consultationsThisWeek = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetween(
-                doctorName, startOfWeek.toString(), today);
+        LocalDate endOfWeek = startOfWeek.plusDays(6);
+        
+        List<String> consultationStatuses = Arrays.asList("CONSULTING", "COMPLETED");
+        
+        int consultationsThisWeek = (int) appointmentRepository.countByDoctorEmailAndAppointmentDateBetweenAndStatusIn(
+                doctorEmail, startOfWeek.toString(), endOfWeek.toString(), consultationStatuses);
+        if (consultationsThisWeek == 0) {
+            consultationsThisWeek = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetweenAndStatusIn(
+                    doctorName, startOfWeek.toString(), endOfWeek.toString(), consultationStatuses);
+        }
 
         // Last week
         LocalDate startOfLastWeek = startOfWeek.minusWeeks(1);
         LocalDate endOfLastWeek = startOfWeek.minusDays(1);
-        int consultationsLastWeek = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetween(
-                doctorName, startOfLastWeek.toString(), endOfLastWeek.toString());
+        int consultationsLastWeek = (int) appointmentRepository.countByDoctorEmailAndAppointmentDateBetweenAndStatusIn(
+                doctorEmail, startOfLastWeek.toString(), endOfLastWeek.toString(), consultationStatuses);
+        if (consultationsLastWeek == 0) {
+            consultationsLastWeek = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetweenAndStatusIn(
+                    doctorName, startOfLastWeek.toString(), endOfLastWeek.toString(), consultationStatuses);
+        }
 
         // Last month
         LocalDate startOfMonth = now.withDayOfMonth(1);
         LocalDate startOfLastMonth = startOfMonth.minusMonths(1);
         LocalDate endOfLastMonth = startOfMonth.minusDays(1);
-        int consultationsThisMonth = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetween(
-                doctorName, startOfMonth.toString(), today);
-        int consultationsLastMonth = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetween(
-                doctorName, startOfLastMonth.toString(), endOfLastMonth.toString());
+        int consultationsThisMonth = (int) appointmentRepository.countByDoctorEmailAndAppointmentDateBetweenAndStatusIn(
+                doctorEmail, startOfMonth.toString(), now.toString(), consultationStatuses);
+        if (consultationsThisMonth == 0) {
+            consultationsThisMonth = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetweenAndStatusIn(
+                    doctorName, startOfMonth.toString(), now.toString(), consultationStatuses);
+        }
+        
+        int consultationsLastMonth = (int) appointmentRepository.countByDoctorEmailAndAppointmentDateBetweenAndStatusIn(
+                doctorEmail, startOfLastMonth.toString(), endOfLastMonth.toString(), consultationStatuses);
+        if (consultationsLastMonth == 0) {
+            consultationsLastMonth = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetweenAndStatusIn(
+                    doctorName, startOfLastMonth.toString(), endOfLastMonth.toString(), consultationStatuses);
+        }
 
         return DoctorDashboardResponse.Stats.builder()
                 .totalPatientsToday(totalPatientsToday)
                 .consultationsThisWeek(consultationsThisWeek)
-                .averageWaitTime(15) // Still mocked as we don't have check-in/out duration data points yet
+                .averageWaitTime(15)
                 .changeFromYesterday(calculatePercentChange(totalPatientsToday, totalPatientsYesterday))
                 .changeFromLastWeek(calculatePercentChange(consultationsThisWeek, consultationsLastWeek))
                 .changeFromLastMonth(calculatePercentChange(consultationsThisMonth, consultationsLastMonth))
@@ -321,7 +350,7 @@ public class DoctorDashboardService {
         return dt.format(DateTimeFormatter.ofPattern("MMM dd"));
     }
 
-    private List<DoctorDashboardResponse.VisitData> getVisitData(String doctorName) {
+    private List<DoctorDashboardResponse.VisitData> getVisitData(String doctorEmail, String doctorName) {
         List<DoctorDashboardResponse.VisitData> data = new ArrayList<>();
         LocalDate now = LocalDate.now();
         for (int i = 5; i >= 0; i--) {
@@ -330,24 +359,34 @@ public class DoctorDashboardService {
             String end = month.withDayOfMonth(month.lengthOfMonth()).toString();
             
             // Only count completed appointments for "Visits"
-            int count = (int) appointmentRepository.countByDoctorNameAndAppointmentDateBetweenAndStatus(
-                    doctorName, start, end, "COMPLETED");
+            int count = appointmentRepository.countByDoctorEmailAndAppointmentDateBetweenAndStatus(
+                    doctorEmail, start, end, "COMPLETED");
+            if (count == 0) {
+                count = appointmentRepository.countByDoctorNameAndAppointmentDateBetweenAndStatus(
+                        doctorName, start, end, "COMPLETED");
+            }
             
             data.add(new DoctorDashboardResponse.VisitData(month.getMonth().name().substring(0, 3), count));
         }
         return data;
     }
 
-    private List<DoctorDashboardResponse.DayConsultation> getConsultationsByDay(String doctorName) {
+    private List<DoctorDashboardResponse.DayConsultation> getConsultationsByDay(String doctorEmail, String doctorName) {
         List<DoctorDashboardResponse.DayConsultation> data = new ArrayList<>();
         LocalDate now = LocalDate.now();
         LocalDate startOfWeek = now.minusDays(now.getDayOfWeek().getValue() - 1);
+        List<String> consultationStatuses = Arrays.asList("CONSULTING", "COMPLETED");
+        
         for (int i = 0; i < 7; i++) {
             LocalDate day = startOfWeek.plusDays(i);
             
-            // Only count completed appointments for "Consultations"
-            int count = (int) appointmentRepository.countByDoctorNameAndAppointmentDateAndStatus(
-                    doctorName, day.toString(), "COMPLETED");
+            // Count completed or in-progress appointments for "Consultations"
+            int count = appointmentRepository.countByDoctorEmailAndAppointmentDateAndStatusIn(
+                    doctorEmail, day.toString(), consultationStatuses);
+            if (count == 0) {
+                count = appointmentRepository.countByDoctorNameAndAppointmentDateAndStatusIn(
+                        doctorName, day.toString(), consultationStatuses);
+            }
             
             data.add(new DoctorDashboardResponse.DayConsultation(day.getDayOfWeek().name().substring(0, 3), count));
         }

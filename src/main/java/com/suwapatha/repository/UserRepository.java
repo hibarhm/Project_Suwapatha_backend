@@ -24,5 +24,7 @@ public interface UserRepository extends MongoRepository<User, String> {
     List<User> findByRoleAndHospitalId(UserRole role, String hospitalId);
 
     long countByRole(UserRole role);
+
+    Optional<User> findByFirstNameAndLastName(String firstName, String lastName);
 }
 

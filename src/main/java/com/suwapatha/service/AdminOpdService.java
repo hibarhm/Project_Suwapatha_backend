@@ -25,6 +25,7 @@ public class AdminOpdService {
         private final UserRepository userRepository;
         private final AppointmentRepository appointmentRepository;
         private final DoctorAvailabilityRepository availabilityRepository;
+        private final NotificationService notificationService;
 
         /** Get the hospital assigned to this admin */
         public Hospital getAdminHospital(String adminEmail) {
@@ -234,6 +235,8 @@ public class AdminOpdService {
                 session.setStartTime(request.getStartTime());
                 session.setEndTime(request.getEndTime());
                 session.setDepartment(request.getDepartment());
+                session.setDoctorId(request.getDoctorId() != null ? request.getDoctorId() : "");
+                session.setDoctorEmail(request.getDoctorEmail() != null ? request.getDoctorEmail() : "");
                 session.setDoctorName(request.getDoctorName() != null ? request.getDoctorName() : "");
                 session.setRoom(request.getRoom() != null ? request.getRoom() : "");
                 session.setMaxQueueSize(request.getMaxQueueSize());
@@ -241,9 +244,18 @@ public class AdminOpdService {
                 session.setCurrentQueueCount(0);
                 session.setStatus("OPEN");
 
-                session = sessionRepository.save(session);
-
                 log.info("Session created successfully: {}", session.getId());
+
+                // Notify doctor if assigned
+                if (session.getDoctorEmail() != null && !session.getDoctorEmail().isEmpty()) {
+                    notificationService.createNotification(
+                        session.getDoctorEmail(),
+                        "New Session Assigned",
+                        "You have been assigned to a new " + session.getDepartment() + " session on " + session.getDate(),
+                        "appointment",
+                        "calendar"
+                    );
+                }
 
                 return convertToResponse(session);
         }
@@ -268,6 +280,12 @@ public class AdminOpdService {
                 log.info("Admin {} updating session: {}", adminEmail, sessionId);
 
                 // Update fields
+                if (request.getDoctorId() != null) {
+                        session.setDoctorId(request.getDoctorId());
+                }
+                if (request.getDoctorEmail() != null) {
+                        session.setDoctorEmail(request.getDoctorEmail());
+                }
                 if (request.getDoctorName() != null) {
                         session.setDoctorName(request.getDoctorName());
                 }
@@ -290,7 +308,19 @@ public class AdminOpdService {
                         session.setStatus(request.getStatus());
                 }
 
+                String oldDoctorEmail = session.getDoctorEmail();
                 session = sessionRepository.save(session);
+
+                // Notify if doctor changed or newly assigned
+                if (session.getDoctorEmail() != null && !session.getDoctorEmail().isEmpty() && !session.getDoctorEmail().equals(oldDoctorEmail)) {
+                    notificationService.createNotification(
+                        session.getDoctorEmail(),
+                        "Session Assignment Updated",
+                        "Your assignment for the " + session.getDepartment() + " session on " + session.getDate() + " has been updated.",
+                        "appointment",
+                        "calendar"
+                    );
+                }
 
                 return convertToResponse(session);
         }
@@ -316,6 +346,11 @@ public class AdminOpdService {
                 session.setRoom(room);
                 session = sessionRepository.save(session);
 
+                // Notify doctor if assigned
+                if (session.getDoctorEmail() != null && !session.getDoctorEmail().isEmpty()) {
+                    notificationService.notifyDoctorRoomAllocation(session.getDoctorEmail(), room);
+                }
+
                 return convertToResponse(session);
         }
 
@@ -338,7 +373,24 @@ public class AdminOpdService {
                 log.info("Assigning doctor {} to session {}", doctorName, sessionId);
 
                 session.setDoctorName(doctorName);
+                // Also try to find and set the doctorId and doctorEmail if possible
+                userRepository.findByFirstNameAndLastName(doctorName.split(" ")[0], doctorName.split(" ").length > 1 ? doctorName.split(" ")[1] : "")
+                                .ifPresent(u -> {
+                                        session.setDoctorId(u.getId());
+                                        session.setDoctorEmail(u.getEmail());
+                                });
                 session = sessionRepository.save(session);
+
+                // Notify doctor if newly assigned
+                if (session.getDoctorEmail() != null && !session.getDoctorEmail().isEmpty()) {
+                    notificationService.createNotification(
+                        session.getDoctorEmail(),
+                        "Session Assigned",
+                        "You have been assigned to a " + session.getDepartment() + " session on " + session.getDate(),
+                        "appointment",
+                        "calendar"
+                    );
+                }
 
                 return convertToResponse(session);
         }
@@ -385,8 +437,22 @@ public class AdminOpdService {
 
                 log.info("Admin {} cancelling session: {}", adminEmail, sessionId);
 
+                String assignedDoctorEmail = session.getDoctorEmail();
+                String sessionInfo = session.getDepartment() + " session on " + session.getDate();
+                
                 session.setStatus("CANCELLED");
                 sessionRepository.save(session);
+
+                // Notify assigned doctor about cancellation
+                if (assignedDoctorEmail != null && !assignedDoctorEmail.isEmpty()) {
+                    notificationService.createNotification(
+                        assignedDoctorEmail,
+                        "Session Cancelled",
+                        "The " + sessionInfo + " has been cancelled by the administrator.",
+                        "alert",
+                        "calendar"
+                    );
+                }
         }
 
         /**
@@ -500,6 +566,9 @@ public class AdminOpdService {
                 availability.setRoom(room);
                 DoctorAvailability savedAvailability = availabilityRepository.save(availability);
 
+                // Notify doctor about room allocation
+                notificationService.notifyDoctorRoomAllocation(savedAvailability.getEmail(), room);
+
                 return convertToAvailabilityResponse(savedAvailability);
         }
 
@@ -553,15 +622,25 @@ public class AdminOpdService {
                                 appointments.size(), activeDoctors.size(), sessionId);
 
                 // 3. Distribute patients equally / round-robin
+                java.util.Map<String, Integer> allocationCount = new java.util.HashMap<>();
                 for (int i = 0; i < appointments.size(); i++) {
                         Appointment appointment = appointments.get(i);
                         DoctorAvailability assignedDoctor = activeDoctors.get(i % activeDoctors.size());
 
+                        appointment.setDoctorId(assignedDoctor.getDoctorId());
+                        appointment.setDoctorEmail(assignedDoctor.getEmail());
                         appointment.setDoctorName(assignedDoctor.getDoctorName());
                         appointment.setRoom(assignedDoctor.getRoom());
 
                         appointmentRepository.save(appointment);
+                        
+                        allocationCount.put(assignedDoctor.getEmail(), allocationCount.getOrDefault(assignedDoctor.getEmail(), 0) + 1);
                 }
+
+                // Notify doctors about patient allocation
+                allocationCount.forEach((email, count) -> {
+                    notificationService.notifyDoctorPatientAllocation(email, count, session.getDepartment() + " Session");
+                });
 
                 // 4. Update session-level info if needed (optional, depends on UI expectations)
                 // For now, we leave the session room as is, or mark it as "Distributed"
@@ -598,6 +677,8 @@ public class AdminOpdService {
                 response.setStartTime(session.getStartTime());
                 response.setEndTime(session.getEndTime());
                 response.setDepartment(session.getDepartment());
+                response.setDoctorId(session.getDoctorId());
+                response.setDoctorEmail(session.getDoctorEmail());
                 response.setDoctorName(
                                 session.getDoctorName() != null && !session.getDoctorName().isEmpty()
                                                 ? session.getDoctorName()

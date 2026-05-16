@@ -15,6 +15,8 @@ public class OpdSessionResponse {
     private String startTime;
     private String endTime;
     private String department;
+    private String doctorId;
+    private String doctorEmail;
     private String doctorName;
     private String room;
     private int maxQueueSize;

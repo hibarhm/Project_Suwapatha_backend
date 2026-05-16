@@ -37,6 +37,8 @@ public class AppointmentService {
         appointment.setHospitalName(session.getHospitalName());
         appointment.setAppointmentDate(session.getDate());
         appointment.setQueueNumber(session.getCurrentQueueCount());
+        appointment.setDoctorId(session.getDoctorId());
+        appointment.setDoctorEmail(session.getDoctorEmail());
         appointment.setDoctorName(session.getDoctorName());
         appointment.setRoom(session.getRoom());
         appointment.setStatus("BOOKED");
