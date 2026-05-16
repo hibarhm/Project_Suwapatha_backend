@@ -24,6 +24,8 @@ public class Hospital {
     private String type; // Teaching | Provincial General | Base | District | Specialized | Maternity
     private String address;
     private String phone;
+    private Double latitude;
+    private Double longitude;
 
     // Link to admin user
     @Indexed

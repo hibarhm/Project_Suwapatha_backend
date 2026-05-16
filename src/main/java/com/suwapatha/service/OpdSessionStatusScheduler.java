@@ -22,7 +22,7 @@ public class OpdSessionStatusScheduler {
      * Runs every 15 minutes to mark sessions as COMPLETED.
      * Threshold:
      * 1. Date is in the past.
-     * 2. Date is today and time is >= 12:00 PM.
+     * 2. Date is today and time is >= 8:00 PM.
      */
     @Scheduled(fixedDelay = 900_000) // 15 minutes
     public void markSessionsAsCompleted() {
@@ -40,8 +40,8 @@ public class OpdSessionStatusScheduler {
             if (session.getDate().compareTo(todayStr) < 0) {
                 shouldComplete = true;
             }
-            // 2. If date is today and time is >= 12:00 PM
-            else if (session.getDate().equals(todayStr) && !nowTime.isBefore(LocalTime.NOON)) {
+            // 2. If date is today and time is >= 8:00 PM
+            else if (session.getDate().equals(todayStr) && !nowTime.isBefore(LocalTime.of(20, 0))) {
                 shouldComplete = true;
             }
 

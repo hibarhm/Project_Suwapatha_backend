@@ -30,8 +30,8 @@ public class OpdSessionService {
                         hospitalId, today, "OPEN")
                 .stream()
                 .filter(s -> {
-                    // Hide session from patients if it's today and after 12:00 PM
-                    if (s.getDate().equals(today) && nowTime.isAfter(LocalTime.NOON)) {
+                    // Hide session from patients if it's today and after 8:00 PM
+                    if (s.getDate().equals(today) && nowTime.isAfter(LocalTime.of(20, 0))) {
                         return false;
                     }
                     return true;
@@ -52,9 +52,9 @@ public class OpdSessionService {
             throw new RuntimeException("This session is no longer open for bookings.");
         }
 
-        // Disable booking at 12:00 AM of the session day
-        if (session.getDate().equals(LocalDate.now().toString())) {
-            throw new RuntimeException("Bookings for this session are closed (Sessions are closed at 12:00 AM on the day of the session).");
+        // Disable booking at 8:00 PM of the session day
+        if (session.getDate().equals(LocalDate.now().toString()) && LocalTime.now().isAfter(LocalTime.of(20, 0))) {
+            throw new RuntimeException("Bookings for this session are closed (Sessions are closed at 8:00 PM on the day of the session).");
         }
         if (session.getCurrentQueueCount() >= session.getMaxQueueSize()) {
             throw new RuntimeException("This session is fully booked.");

@@ -7,14 +7,13 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class HospitalResponse {
+public class NearbyHospitalResponse {
     private String id;
     private String name;
-    private String district;
-    private String province;
-    private String type;
     private String address;
+    private String type;
     private String phone;
     private Double latitude;
     private Double longitude;
+    private Double distanceKm;
 }
