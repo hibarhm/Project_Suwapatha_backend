@@ -17,4 +17,5 @@ public class DoctorPatientResponse {
     private String time;
     private String status;
     private String patientId; // Used for navigation
+    private String date; // Adding consultation date
 }

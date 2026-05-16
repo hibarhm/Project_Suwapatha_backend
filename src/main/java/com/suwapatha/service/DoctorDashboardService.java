@@ -96,7 +96,38 @@ public class DoctorDashboardService {
         String today = LocalDate.now().toString();
 
         // Fetch only today's appointments (all statuses)
-        return appointmentRepository.findByDoctorNameAndAppointmentDate(doctorName, today).stream()
+        List<Appointment> appointments = appointmentRepository.findByDoctorEmailAndAppointmentDate(doctorEmail, today);
+        if (appointments.isEmpty()) {
+            appointments = appointmentRepository.findByDoctorNameAndAppointmentDate(doctorName, today);
+        }
+
+        return appointments.stream()
+                .map(this::toDoctorPatientResponse)
+                .collect(Collectors.toList());
+    }
+
+    public List<DoctorPatientResponse> getPastDoctorPatients(String doctorEmail) {
+        log.info("Fetching past patient list for doctor: {}", doctorEmail);
+
+        User doctor = userRepository.findByEmail(doctorEmail)
+                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+
+        String doctorName = doctor.getFirstName() + " " + doctor.getLastName();
+        LocalDate now = LocalDate.now();
+        String today = now.toString();
+        String startDate = now.minusDays(7).toString();
+
+        // Fetch past 7 days COMPLETED appointments
+        List<Appointment> appointments = appointmentRepository.findByDoctorEmailAndAppointmentDateBetweenAndStatus(
+                doctorEmail, startDate, today, "COMPLETED");
+        if (appointments.isEmpty()) {
+            appointments = appointmentRepository.findByDoctorNameAndAppointmentDateBetweenAndStatus(
+                    doctorName, startDate, today, "COMPLETED");
+        }
+
+        return appointments.stream()
+                .filter(a -> !a.getAppointmentDate().equals(today)) // Only truly past
+                .sorted((a1, a2) -> a2.getAppointmentDate().compareTo(a1.getAppointmentDate())) // Sort by date desc
                 .map(this::toDoctorPatientResponse)
                 .collect(Collectors.toList());
     }
@@ -222,6 +253,7 @@ public class DoctorDashboardService {
         r.setQueueNo("Q-" + String.format("%03d", a.getQueueNumber()));
         r.setStatus(a.getStatus());
         r.setPatientId(a.getPatientId());
+        r.setDate(a.getAppointmentDate());
 
         // Calculate time based on session start and queue number
         r.setTime(calculateAppointmentTime(a));

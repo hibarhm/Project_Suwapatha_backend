@@ -17,6 +17,9 @@ public interface OpdSessionRepository extends MongoRepository<OpdSession, String
 
     List<OpdSession> findByHospitalIdOrderByDateDescStartTimeDesc(String hospitalId);
 
+    List<OpdSession> findByHospitalIdAndDateBetweenOrderByDateDescStartTimeDesc(
+            String hospitalId, String startDate, String endDate);
+
     List<OpdSession> findByStatusIn(List<String> statuses);
 
     long countByHospitalIdAndDateBetweenAndStatus(String hospitalId, String startDate, String endDate, String status);

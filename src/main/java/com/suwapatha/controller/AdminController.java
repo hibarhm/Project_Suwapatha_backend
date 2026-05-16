@@ -104,6 +104,12 @@ public class AdminController {
         return ResponseEntity.ok(adminOpdService.getUpcomingSessions(adminEmail));
     }
 
+    @GetMapping("/opd/sessions/past")
+    public ResponseEntity<List<OpdSessionResponse>> getPastSessions(Authentication authentication) {
+        String adminEmail = authentication.getName();
+        return ResponseEntity.ok(adminOpdService.getPastSessions(adminEmail));
+    }
+
     @GetMapping("/opd/rooms")
     public ResponseEntity<List<String>> getRooms(Authentication authentication) {
         String adminEmail = authentication.getName();

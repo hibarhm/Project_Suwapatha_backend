@@ -219,6 +219,31 @@ public class AdminOpdService {
         }
 
         /**
+         * Get past sessions (last 7 days) for the admin's hospital
+         */
+        public List<OpdSessionResponse> getPastSessions(String adminEmail) {
+                Hospital hospital = getAdminHospital(adminEmail);
+                String today = getTodayDate();
+                String startDate = LocalDate.now().minusDays(7)
+                                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+
+                log.debug("Getting past sessions for hospital: {}", hospital.getName());
+
+                List<OpdSession> sessions = sessionRepository
+                                .findByHospitalIdAndDateBetweenOrderByDateDescStartTimeDesc(
+                                                hospital.getId(),
+                                                startDate,
+                                                today)
+                                .stream()
+                                .filter(s -> s.getDate().compareTo(today) < 0) // Only truly past sessions
+                                .collect(Collectors.toList());
+
+                return sessions.stream()
+                                .map(this::convertToResponse)
+                                .collect(Collectors.toList());
+        }
+
+        /**
          * Create new OPD session - hospital is automatically set from admin's
          * authentication
          */
@@ -373,13 +398,14 @@ public class AdminOpdService {
                 log.info("Assigning doctor {} to session {}", doctorName, sessionId);
 
                 session.setDoctorName(doctorName);
+                final OpdSession finalSession = session;
                 // Also try to find and set the doctorId and doctorEmail if possible
                 userRepository.findByFirstNameAndLastName(doctorName.split(" ")[0], doctorName.split(" ").length > 1 ? doctorName.split(" ")[1] : "")
                                 .ifPresent(u -> {
-                                        session.setDoctorId(u.getId());
-                                        session.setDoctorEmail(u.getEmail());
+                                        finalSession.setDoctorId(u.getId());
+                                        finalSession.setDoctorEmail(u.getEmail());
                                 });
-                session = sessionRepository.save(session);
+                session = sessionRepository.save(finalSession);
 
                 // Notify doctor if newly assigned
                 if (session.getDoctorEmail() != null && !session.getDoctorEmail().isEmpty()) {

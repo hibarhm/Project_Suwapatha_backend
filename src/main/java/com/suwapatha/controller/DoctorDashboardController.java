@@ -48,6 +48,16 @@ public class DoctorDashboardController {
         return ResponseEntity.ok(doctorDashboardService.getDoctorPatients(doctorEmail));
     }
 
+    @GetMapping("/patients/past")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('DOCTOR')")
+    public ResponseEntity<List<DoctorPatientResponse>> getPastPatients(Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(401).build();
+        }
+        String doctorEmail = authentication.getName();
+        return ResponseEntity.ok(doctorDashboardService.getPastDoctorPatients(doctorEmail));
+    }
+
     @GetMapping("/patients/{id}")
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<PatientDetailsResponse> getPatientDetails(
