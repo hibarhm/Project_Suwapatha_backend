@@ -25,4 +25,13 @@ public class AppointmentResponse {
     private int slotDuration; // minutes per slot
     private String createdAt;
     private boolean isNext;
+
+    // New fields for Doctor Allocation & Queue Generation Workflow
+    private String allocationStatus;
+    private String assignedDoctorId;
+    private String finalQueueNumber;
+    private String estimatedConsultationTime;
+    private String allocatedAt;
+    private String liveQueueStatus;
+    private int priorityLevel;
 }

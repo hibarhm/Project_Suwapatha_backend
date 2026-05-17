@@ -26,6 +26,7 @@ public class AdminOpdService {
         private final AppointmentRepository appointmentRepository;
         private final DoctorAvailabilityRepository availabilityRepository;
         private final NotificationService notificationService;
+        private final EmailService emailService;
 
         /** Get the hospital assigned to this admin */
         public Hospital getAdminHospital(String adminEmail) {
@@ -633,10 +634,15 @@ public class AdminOpdService {
                         throw new IllegalArgumentException("No active doctors with assigned rooms found for today");
                 }
 
+                // Sort active doctors by doctorName or email/id to be fully deterministic
+                activeDoctors.sort(java.util.Comparator.comparing(DoctorAvailability::getDoctorName)
+                                .thenComparing(DoctorAvailability::getEmail));
+
                 // 2. Get all booked appointments for this session
                 List<Appointment> appointments = appointmentRepository.findBySessionIdOrderByQueueNumberAsc(sessionId)
                                 .stream()
-                                .filter(a -> "BOOKED".equals(a.getStatus()))
+                                .filter(a -> "PENDING_ALLOCATION".equals(a.getStatus()) || "BOOKED".equals(a.getStatus()))
+                                .filter(a -> !"ALLOCATED".equals(a.getAllocationStatus()))
                                 .collect(Collectors.toList());
 
                 if (appointments.isEmpty()) {
@@ -647,20 +653,99 @@ public class AdminOpdService {
                 log.info("Allocating {} patients among {} doctors for session {}",
                                 appointments.size(), activeDoctors.size(), sessionId);
 
-                // 3. Distribute patients equally / round-robin
-                java.util.Map<String, Integer> allocationCount = new java.util.HashMap<>();
+                // 3. Build list of active doctors and initialize their individual allocated queues
+                int numDoctors = activeDoctors.size();
+                java.util.List<java.util.List<Appointment>> doctorQueues = new java.util.ArrayList<>();
+                for (int j = 0; j < numDoctors; j++) {
+                        doctorQueues.add(new java.util.ArrayList<>());
+                }
+
+                // Distribute appointments round-robin among active doctors' queues
                 for (int i = 0; i < appointments.size(); i++) {
-                        Appointment appointment = appointments.get(i);
-                        DoctorAvailability assignedDoctor = activeDoctors.get(i % activeDoctors.size());
+                        int doctorIndex = i % numDoctors;
+                        doctorQueues.get(doctorIndex).add(appointments.get(i));
+                }
 
-                        appointment.setDoctorId(assignedDoctor.getDoctorId());
-                        appointment.setDoctorEmail(assignedDoctor.getEmail());
-                        appointment.setDoctorName(assignedDoctor.getDoctorName());
-                        appointment.setRoom(assignedDoctor.getRoom());
+                int slotDuration = session.getSlotDuration() > 0 ? session.getSlotDuration() : 15;
+                java.time.LocalTime sessionStartTime;
+                try {
+                        sessionStartTime = java.time.LocalTime.parse(session.getStartTime());
+                } catch (Exception e) {
+                        sessionStartTime = java.time.LocalTime.of(8, 0); // fallback
+                }
 
-                        appointmentRepository.save(appointment);
-                        
-                        allocationCount.put(assignedDoctor.getEmail(), allocationCount.getOrDefault(assignedDoctor.getEmail(), 0) + 1);
+                java.util.Map<String, Integer> allocationCount = new java.util.HashMap<>();
+
+                for (int j = 0; j < numDoctors; j++) {
+                        DoctorAvailability doc = activeDoctors.get(j);
+                        char prefixChar = (char)('A' + (j % 26));
+                        String doctorPrefix = String.valueOf(prefixChar);
+
+                        java.util.List<Appointment> doctorQueue = doctorQueues.get(j);
+                        for (int k = 0; k < doctorQueue.size(); k++) {
+                                Appointment appointment = doctorQueue.get(k);
+                                int patientIndexInDoctorQueue = k + 1; // 1-indexed for queue number
+
+                                // Generate final queue number e.g. A-01, B-02
+                                String finalQueueNo = doctorPrefix + "-" + String.format("%02d", patientIndexInDoctorQueue);
+
+                                // Calculate estimated consultation time
+                                int waitOffsetMinutes = k * slotDuration;
+                                java.time.LocalTime estTime = sessionStartTime.plusMinutes(waitOffsetMinutes);
+                                String estConsultationTime = estTime.format(java.time.format.DateTimeFormatter.ofPattern("hh:mm a"));
+
+                                // Set doctor and room information
+                                appointment.setDoctorId(doc.getDoctorId());
+                                appointment.setDoctorEmail(doc.getEmail());
+                                appointment.setDoctorName(doc.getDoctorName());
+                                appointment.setRoom(doc.getRoom());
+
+                                // Update statuses
+                                appointment.setStatus("BOOKED");
+                                appointment.setAllocationStatus("ALLOCATED");
+                                appointment.setFinalQueueNumber(finalQueueNo);
+                                appointment.setEstimatedConsultationTime(estConsultationTime);
+                                appointment.setAllocatedAt(java.time.LocalDateTime.now());
+                                
+                                // Set estimated wait minutes relative to this doctor's queue
+                                appointment.setEstimatedWaitMinutes(waitOffsetMinutes);
+
+                                appointmentRepository.save(appointment);
+
+                                // Track count for notifying doctor
+                                allocationCount.put(doc.getEmail(), allocationCount.getOrDefault(doc.getEmail(), 0) + 1);
+
+                                // 9. Notify Patient
+                                String title = "Your Queue Number is Assigned";
+                                String message = String.format("You have been allocated to %s. Queue Number: %s. Estimated Consultation Time: %s.",
+                                                doc.getDoctorName(), finalQueueNo, estConsultationTime);
+                                
+                                // Create system notification for patient
+                                notificationService.createNotification(
+                                                appointment.getPatientId(),
+                                                title,
+                                                message,
+                                                "appointment",
+                                                "calendar"
+                                );
+
+                                // Create email notification for patient
+                                String emailBody = String.format(
+                                                "Dear Patient,\n\n" +
+                                                "Your OPD session allocation for today at %s is complete.\n\n" +
+                                                "Assigned Doctor: %s\n" +
+                                                "OPD Room: %s\n" +
+                                                "Queue Number: %s\n" +
+                                                "Estimated Consultation Time: %s\n\n" +
+                                                "Thank you for using Suwapatha.",
+                                                appointment.getHospitalName(),
+                                                doc.getDoctorName(),
+                                                doc.getRoom(),
+                                                finalQueueNo,
+                                                estConsultationTime
+                                );
+                                emailService.sendEmail(appointment.getPatientEmail(), title, emailBody);
+                        }
                 }
 
                 // Notify doctors about patient allocation
@@ -668,10 +753,11 @@ public class AdminOpdService {
                     notificationService.notifyDoctorPatientAllocation(email, count, session.getDepartment() + " Session");
                 });
 
-                // 4. Update session-level info if needed (optional, depends on UI expectations)
-                // For now, we leave the session room as is, or mark it as "Distributed"
+                // 4. Update session-level info
                 session.setDoctorName("Multiple Doctors");
                 session.setRoom("Distributed");
+                session.setAllocationStatus("ALLOCATED");
+                session.setAllocatedAt(java.time.LocalDateTime.now());
                 sessionRepository.save(session);
         }
 

@@ -250,13 +250,21 @@ public class DoctorDashboardService {
     private DoctorPatientResponse toDoctorPatientResponse(Appointment a) {
         DoctorPatientResponse r = new DoctorPatientResponse();
         r.setId(a.getId());
-        r.setQueueNo("Q-" + String.format("%03d", a.getQueueNumber()));
+        if ("ALLOCATED".equals(a.getAllocationStatus()) && a.getFinalQueueNumber() != null && !a.getFinalQueueNumber().isEmpty()) {
+            r.setQueueNo(a.getFinalQueueNumber());
+        } else {
+            r.setQueueNo("Q-" + String.format("%03d", a.getQueueNumber()));
+        }
         r.setStatus(a.getStatus());
         r.setPatientId(a.getPatientId());
         r.setDate(a.getAppointmentDate());
 
         // Calculate time based on session start and queue number
-        r.setTime(calculateAppointmentTime(a));
+        if ("ALLOCATED".equals(a.getAllocationStatus()) && a.getEstimatedConsultationTime() != null && !a.getEstimatedConsultationTime().isEmpty()) {
+            r.setTime(a.getEstimatedConsultationTime());
+        } else {
+            r.setTime(calculateAppointmentTime(a));
+        }
 
         userRepository.findByEmail(a.getPatientEmail()).ifPresent(u -> {
             r.setName(u.getFirstName() + " " + u.getLastName());
@@ -431,7 +439,11 @@ public class DoctorDashboardService {
         r.setHospitalName(a.getHospitalName());
         r.setAppointmentDate(a.getAppointmentDate());
         r.setQueueNumber(a.getQueueNumber());
-        r.setQueueNo("A-" + String.format("%03d", a.getQueueNumber())); // Formatting example
+        if ("ALLOCATED".equals(a.getAllocationStatus()) && a.getFinalQueueNumber() != null && !a.getFinalQueueNumber().isEmpty()) {
+            r.setQueueNo(a.getFinalQueueNumber());
+        } else {
+            r.setQueueNo("A-" + String.format("%03d", a.getQueueNumber())); // Formatting example
+        }
 
         // Fetch patient name
         userRepository.findByEmail(a.getPatientEmail()).ifPresent(u -> {
@@ -442,7 +454,11 @@ public class DoctorDashboardService {
         r.setRoom(a.getRoom());
         r.setStatus(a.getStatus());
         r.setEstimatedWaitMinutes(a.getEstimatedWaitMinutes());
-        r.setTime(calculateAppointmentTime(a));
+        if ("ALLOCATED".equals(a.getAllocationStatus()) && a.getEstimatedConsultationTime() != null && !a.getEstimatedConsultationTime().isEmpty()) {
+            r.setTime(a.getEstimatedConsultationTime());
+        } else {
+            r.setTime(calculateAppointmentTime(a));
+        }
         r.setAvatar(""); // Optional avatar URL
         r.setCreatedAt(a.getCreatedAt() != null ? a.getCreatedAt().toString() : "");
         return r;

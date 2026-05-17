@@ -36,19 +36,20 @@ public class AppointmentService {
         appointment.setSessionId(session.getId());
         appointment.setHospitalName(session.getHospitalName());
         appointment.setAppointmentDate(session.getDate());
+        
+        // Internal sequence number (booking order) used for fair allocation sorting
         appointment.setQueueNumber(session.getCurrentQueueCount());
-        appointment.setDoctorId(session.getDoctorId());
-        appointment.setDoctorEmail(session.getDoctorEmail());
-        appointment.setDoctorName(session.getDoctorName());
-        appointment.setRoom(session.getRoom());
-        appointment.setStatus("BOOKED");
+        
+        // These will be assigned during doctor allocation on session day
+        appointment.setDoctorId(null);
+        appointment.setDoctorEmail(null);
+        appointment.setDoctorName(null);
+        appointment.setRoom(null);
+        appointment.setStatus("PENDING_ALLOCATION");
+        appointment.setAllocationStatus("PENDING");
+        appointment.setEstimatedWaitMinutes(0);
 
-        // Estimated wait = (people ahead) * duration
-        int ahead = Math.max(0, session.getCurrentQueueCount() - 1);
         int duration = session.getSlotDuration() > 0 ? session.getSlotDuration() : 15;
-        appointment.setEstimatedWaitMinutes(ahead * duration);
-
-        // Store session time info so the frontend can compute UTC appointment time
         appointment.setSessionStartTime(session.getStartTime());
         appointment.setSlotDuration(duration);
 
@@ -64,7 +65,7 @@ public class AppointmentService {
 
     /** Latest relevant appointment (for the queue status card) */
     public AppointmentResponse getActiveAppointment(String patientId) {
-        List<String> activeStatuses = List.of("BOOKED", "CHECKED_IN", "CONSULTING");
+        List<String> activeStatuses = List.of("PENDING_ALLOCATION", "BOOKED", "CHECKED_IN", "CONSULTING");
         List<Appointment> candidates = appointmentRepository
                 .findByPatientIdAndStatusInOrderByAppointmentDateAsc(patientId, activeStatuses);
 
@@ -154,6 +155,16 @@ public class AppointmentService {
         r.setSessionStartTime(a.getSessionStartTime());
         r.setSlotDuration(a.getSlotDuration());
         r.setCreatedAt(a.getCreatedAt() != null ? a.getCreatedAt().toString() : "");
+
+        // Set allocation-specific DTO fields
+        r.setAllocationStatus(a.getAllocationStatus());
+        r.setAssignedDoctorId(a.getAssignedDoctorId());
+        r.setFinalQueueNumber(a.getFinalQueueNumber());
+        r.setQueueNo(a.getFinalQueueNumber() != null ? a.getFinalQueueNumber() : "");
+        r.setEstimatedConsultationTime(a.getEstimatedConsultationTime());
+        r.setAllocatedAt(a.getAllocatedAt() != null ? a.getAllocatedAt().toString() : "");
+        r.setLiveQueueStatus(a.getLiveQueueStatus());
+        r.setPriorityLevel(a.getPriorityLevel());
 
         // Determine if this patient is "Next"
         if ("BOOKED".equals(a.getStatus()) || "CHECKED_IN".equals(a.getStatus())) {

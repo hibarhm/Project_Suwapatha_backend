@@ -38,6 +38,9 @@ public class OpdSession {
     // OPEN | FULL | CANCELLED
     private String status;
 
+    private String allocationStatus = "PENDING"; // PENDING | ALLOCATED
+    private LocalDateTime allocatedAt;
+
     @CreatedDate
     private LocalDateTime createdAt;
 }
