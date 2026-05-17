@@ -199,8 +199,6 @@ public class AdminOpdService {
         public List<OpdSessionResponse> getUpcomingSessions(String adminEmail) {
                 Hospital hospital = getAdminHospital(adminEmail);
                 String today = getTodayDate();
-                String endDate = LocalDate.now().plusDays(7)
-                                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 
                 log.debug("Getting upcoming sessions for hospital: {}", hospital.getName());
 
@@ -210,7 +208,7 @@ public class AdminOpdService {
                                                 today,
                                                 "OPEN")
                                 .stream()
-                                .filter(s -> s.getDate().compareTo(today) > 0 && s.getDate().compareTo(endDate) <= 0)
+                                .filter(s -> s.getDate().compareTo(today) > 0)
                                 .collect(Collectors.toList());
 
                 return sessions.stream()
@@ -268,6 +266,8 @@ public class AdminOpdService {
                 session.setSlotDuration(request.getSlotDuration());
                 session.setCurrentQueueCount(0);
                 session.setStatus("OPEN");
+
+                session = sessionRepository.save(session);
 
                 log.info("Session created successfully: {}", session.getId());
 
